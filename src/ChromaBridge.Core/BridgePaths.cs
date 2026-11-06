@@ -13,7 +13,7 @@ public static class BridgePaths
     /// The GitHub repository ("owner/name") whose releases the updater installs. Installed
     /// copies keep asking this address, so do not change it without leaving a redirect.
     /// </summary>
-    public const string UpdateRepository = "scdemanett/ChromaBridge";
+    public const string UpdateRepository = "scdemanett/chromabridge";
 
     /// <summary>The named pipe the tray app uses to talk to the service.</summary>
     public const string ControlPipeName = "ChromaBridge.Control";

@@ -24,7 +24,7 @@ It is an early release. Expect rough edges.
 ## Install
 
 Download the latest `ChromaBridge-x.y.z-setup.exe` from
-[Releases](https://github.com/scdemanett/ChromaBridge/releases) and run it. ChromaBridge
+[Releases](https://github.com/scdemanett/chromabridge/releases) and run it. ChromaBridge
 starts with Windows and lives in the system tray.
 
 After installing:
