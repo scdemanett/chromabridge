@@ -455,3 +455,6 @@ $RECYCLE.BIN/
 
 # Third-party native libraries fetched by tools/fetch-icue-sdk.ps1
 src/ChromaBridge.Providers.Corsair/native/
+
+# The tray app project folder ends in ".App", which the "*.app" rule above would hide
+!src/ChromaBridge.App/

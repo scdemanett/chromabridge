@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <ApplicationIcon>../ChromaBridge.ico</ApplicationIcon>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>ChromaBridge</AssemblyName>
+    <RootNamespace>ChromaBridge.App</RootNamespace>
+    <!-- WPF0001: the Fluent ThemeMode API is marked experimental -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Windows Forms is only here for the tray icon; keep its types out of the implicit usings -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ChromaBridge.Core\ChromaBridge.Core.csproj" />
+  </ItemGroup>
+
+</Project>
