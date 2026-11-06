@@ -37,7 +37,8 @@ public partial class App : Application
 
         _trayIcon = new Forms.NotifyIcon
         {
-            Icon = AppIcon.Create(),
+            // The small-icon size follows the display scale, so the tray gets a frame drawn for it
+            Icon = AppIcon.Create(Forms.SystemInformation.SmallIconSize.Width),
             Text = BridgePaths.ProductName,
             ContextMenuStrip = menu,
             Visible = true

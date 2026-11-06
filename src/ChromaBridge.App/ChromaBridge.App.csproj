@@ -18,6 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The tray and window icons are read from the same .ico the executable uses -->
+    <EmbeddedResource Include="..\ChromaBridge.ico" LogicalName="ChromaBridge.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ChromaBridge.Core\ChromaBridge.Core.csproj" />
   </ItemGroup>
 
