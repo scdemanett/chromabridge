@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="AuraServiceLib.NET" Version="1.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ChromaBridge.Core\ChromaBridge.Core.csproj" />
+  </ItemGroup>
+
+</Project>

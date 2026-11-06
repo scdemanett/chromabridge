@@ -1,0 +1,46 @@
+// Licensed under the MIT license. See LICENSE.txt in the project root.
+
+namespace ChromaBridge;
+
+/// <summary>
+/// Names and locations shared by the service, the provider hosts and the tray app.
+/// </summary>
+public static class BridgePaths
+{
+    public const string ProductName = "ChromaBridge";
+
+    /// <summary>The named pipe the tray app uses to talk to the service.</summary>
+    public const string ControlPipeName = "ChromaBridge.Control";
+
+    /// <summary>Signaled to ask a running service to shut down cleanly.</summary>
+    public const string ServiceStopEventName = "ChromaBridge.Service.Stop";
+
+    public const string ServiceMutexName = "ChromaBridge.Service";
+
+    public const string AppMutexName = "ChromaBridge.App";
+
+    public const string ServiceExeName = "ChromaBridge.Service.exe";
+
+    public const string HostExeName = "ChromaBridge.Host.exe";
+
+    public const string AppExeName = "ChromaBridge.exe";
+
+    /// <summary>
+    /// Settings and logs live under ProgramData so the elevated service and the
+    /// unelevated tray app see the same files.
+    /// </summary>
+    public static string DataDirectory { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), ProductName);
+
+    public static string LogDirectory => Path.Combine(DataDirectory, "logs");
+
+    public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
+
+    /// <summary>Optional file that overrides the built-in Razer app IDs.</summary>
+    public static string AppIdOverrideFile => Path.Combine(DataDirectory, "appids.json");
+
+    public static string InstallDirectory => AppContext.BaseDirectory;
+
+    public static string ServiceExePath => Path.Combine(InstallDirectory, ServiceExeName);
+
+    public static string HostExePath => Path.Combine(InstallDirectory, HostExeName);
+}

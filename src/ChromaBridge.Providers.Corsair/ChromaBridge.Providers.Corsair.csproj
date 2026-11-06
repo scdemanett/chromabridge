@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- Corsair's iCUE SDK v4 client library. Not in git: run tools\fetch-icue-sdk.ps1 to get it. -->
+    <Content Include="native\iCUESDK.x64_2019.dll" Link="iCUESDK.x64_2019.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('native\iCUESDK.x64_2019.dll')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ChromaBridge.Core\ChromaBridge.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,18 @@
+<Solution>
+  <Project Path="ChromaBridge.App/ChromaBridge.App.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="ChromaBridge.Core/ChromaBridge.Core.csproj" />
+  <Project Path="ChromaBridge.Host/ChromaBridge.Host.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="ChromaBridge.Providers.Asus/ChromaBridge.Providers.Asus.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="ChromaBridge.Providers.Corsair/ChromaBridge.Providers.Corsair.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="ChromaBridge.Service/ChromaBridge.Service.csproj">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

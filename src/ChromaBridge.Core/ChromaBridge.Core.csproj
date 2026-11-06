@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Content Include="Data\AppIds.dat" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -452,3 +452,6 @@ $RECYCLE.BIN/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Third-party native libraries fetched by tools/fetch-icue-sdk.ps1
+src/ChromaBridge.Providers.Corsair/native/
