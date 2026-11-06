@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using ChromaControl.Security;
 
 namespace ChromaControl.Abstractions
@@ -30,9 +31,10 @@ namespace ChromaControl.Abstractions
         IEnumerable<IDevice> Devices { get; }
 
         /// <summary>
-        /// Initializes the provider
+        /// Initializes the provider, blocking until its devices are available
         /// </summary>
-        void Initialize();
+        /// <param name="cancellationToken">Cancels the wait for devices</param>
+        void Initialize(CancellationToken cancellationToken);
 
         /// <summary>
         /// Performs a health check on the provider

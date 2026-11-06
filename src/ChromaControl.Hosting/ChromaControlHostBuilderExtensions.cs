@@ -6,15 +6,11 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using ChromaControl.Abstractions;
-using ChromaControl.Security;
-using Microsoft.AppCenter;
-using Microsoft.AppCenter.Analytics;
-using Microsoft.AppCenter.Crashes;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Windows.Storage;
+using NReco.Logging.File;
 
 namespace ChromaControl.Hosting
 {
@@ -36,48 +32,34 @@ namespace ChromaControl.Hosting
         /// <returns>The host builder</returns>
         public static IHostBuilder UseChromaControl(this IHostBuilder hostBuilder)
         {
-            var debugMode = ApplicationData.Current.LocalSettings.Values["DebugMode"];
-
-            if (debugMode != null && (bool)debugMode)
+            if (ModuleEnvironment.DebugMode && !ModuleEnvironment.HasArgument("--stop"))
             {
                 AllocConsole();
-                Console.Title = Path.GetFileNameWithoutExtension(Assembly.GetEntryAssembly().Location);
+                Console.Title = ModuleEnvironment.ModuleName;
             }
 
-            var logFolder = Path.Combine(ApplicationData.Current.LocalFolder.Path, "logs");
-
-            if (!Directory.Exists(logFolder))
-                Directory.CreateDirectory(logFolder);
+            Directory.CreateDirectory(ModuleEnvironment.LogFolder);
 
             return hostBuilder
                 .UseContentRoot(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location))
                 .ConfigureLogging((hostingContext, logging) =>
                 {
-                    // Disabling logging due to IOException, this only started in 0.1.2 which is weird.
-                    //logging.AddFile(Path.Combine(logFolder, $"{Path.GetFileNameWithoutExtension(Assembly.GetEntryAssembly().Location)}.log"), append: true);
+                    logging.AddFilter("ChromaControl", LogLevel.Debug);
+
+                    logging.AddFile(ModuleEnvironment.LogFile, options =>
+                    {
+                        options.Append = true;
+                        options.MinLevel = LogLevel.Debug;
+                        options.FileSizeLimitBytes = 5 * 1024 * 1024;
+                        options.MaxRollingFiles = 3;
+
+                        // If the log file is locked, write to a second file instead of failing
+                        options.HandleFileError = error => error.UseNewLogFileName(Path.Combine(ModuleEnvironment.LogFolder, $"{ModuleEnvironment.ModuleName}.{Environment.ProcessId}.log"));
+                    });
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
                     services.AddHostedService<ModuleService>();
-                });
-        }
-
-        /// <summary>
-        /// Configures the host to use app center
-        /// </summary>
-        /// <param name="hostBuilder">The host builder</param>
-        /// <returns>The host builder</returns>
-        public static IHostBuilder UseAppCenter(this IHostBuilder hostBuilder)
-        {
-            return hostBuilder
-                .ConfigureServices((hostContext, services) =>
-                {
-#if !DEBUG
-                    var sp = services.BuildServiceProvider();
-                    var deviceProvider = sp.GetService<IDeviceProvider>();
-
-                    AppCenter.Start(Guids.GetSecureGuid($"ChromaControl.{deviceProvider.Name}.AppCenter").ToString(), typeof(Analytics), typeof(Crashes));
-#endif
                 });
         }
 
@@ -87,13 +69,48 @@ namespace ChromaControl.Hosting
         /// <param name="hostBuilder">The host builder</param>
         public static void RunWithMutex(this IHostBuilder hostBuilder)
         {
+            // "--stop" asks an already running module to shut down cleanly, then exits
+            if (ModuleEnvironment.HasArgument("--stop"))
+            {
+                if (EventWaitHandle.TryOpenExisting(ModuleEnvironment.StopEventName, out var existingStopEvent))
+                {
+                    using (existingStopEvent)
+                        existingStopEvent.Set();
+                }
+
+                return;
+            }
+
             var mutex = new ModuleMutex();
 
-            if (mutex.Success)
-                hostBuilder.ConfigureServices((hostContext, services) =>
-                {
-                    services.AddSingleton(mutex);
-                }).Build().Run();
+            if (!mutex.Success)
+            {
+                File.AppendAllText(
+                    Path.Combine(ModuleEnvironment.LogFolder, $"{ModuleEnvironment.ModuleName}.startup.log"),
+                    $"{DateTime.Now:O} Another {ModuleEnvironment.ModuleName} is already running, so this one exited.{Environment.NewLine}");
+
+                return;
+            }
+
+            using var stopEvent = new EventWaitHandle(false, EventResetMode.ManualReset, ModuleEnvironment.StopEventName);
+
+            using var host = hostBuilder.ConfigureServices((hostContext, services) =>
+            {
+                services.AddSingleton(mutex);
+            }).Build();
+
+            var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+
+            var stopRegistration = ThreadPool.RegisterWaitForSingleObject(stopEvent, (state, timedOut) => lifetime.StopApplication(), null, Timeout.Infinite, true);
+
+            try
+            {
+                host.Run();
+            }
+            finally
+            {
+                stopRegistration.Unregister(null);
+            }
         }
     }
 }

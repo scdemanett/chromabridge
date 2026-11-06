@@ -5,6 +5,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using Windows.ApplicationModel;
 using Windows.Storage;
 
@@ -50,8 +51,18 @@ namespace ChromaControl.Launcher
             {
                 startupTask.Disable();
 
+                // Ask the module to stop cleanly so it can hand lighting control back
+                if (EventWaitHandle.TryOpenExisting($"{executableName}.Stop", out var stopEvent))
+                {
+                    using (stopEvent)
+                        stopEvent.Set();
+                }
+
                 foreach (var process in Process.GetProcessesByName(executableName))
-                    process.Kill();
+                {
+                    if (!process.WaitForExit(10000))
+                        process.Kill();
+                }
             }
         }
     }

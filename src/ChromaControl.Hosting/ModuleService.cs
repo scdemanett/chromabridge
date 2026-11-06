@@ -31,6 +31,16 @@ namespace ChromaControl.Hosting
         private readonly IDeviceProvider _deviceProvider;
 
         /// <summary>
+        /// The number of effect frames received from Chroma
+        /// </summary>
+        private long _framesReceived;
+
+        /// <summary>
+        /// The number of effect frames that failed to apply
+        /// </summary>
+        private long _framesFailed;
+
+        /// <summary>
         /// Creates the module service
         /// </summary>
         /// <param name="logger">The logger</param>
@@ -48,7 +58,7 @@ namespace ChromaControl.Hosting
         /// <returns>A task</returns>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await Task.Delay(1, stoppingToken);
+            await Task.Yield();
 
             if (_deviceProvider == null)
             {
@@ -56,34 +66,97 @@ namespace ChromaControl.Hosting
                 return;
             }
 
-            var version = Assembly.GetEntryAssembly().GetName().Version.ToString().Substring(0, 5);
+            var version = Assembly.GetEntryAssembly().GetName().Version.ToString(3);
+            var broadcastInitialized = false;
 
-            _logger.LogInformation($"Initializing Chroma Control - {_deviceProvider.Name} v{version}...");
-            _logger.LogInformation("Initializing Device Provider...");
+            _logger.LogInformation("Initializing Chroma Control - {Provider} v{Version}...", _deviceProvider.Name, version);
 
-            _deviceProvider.Initialize();
-            _deviceProvider.RequestControl();
-
-            foreach (var device in _deviceProvider.Devices)
+            try
             {
-                _logger.LogInformation($"Found Device: {device.Name} - {device.Lights.Count()} Lights");
+                _logger.LogInformation("Initializing Device Provider...");
+
+                // Blocks until the provider has devices, so control is never taken with nothing to drive
+                _deviceProvider.Initialize(stoppingToken);
+
+                foreach (var device in _deviceProvider.Devices)
+                {
+                    _logger.LogInformation("Found Device: {Device} - {Lights} Lights", device.Name, device.Lights.Count());
+                }
+
+                _deviceProvider.RequestControl();
+
+                _logger.LogInformation("Initializing Razer Chroma Broadcast SDK...");
+
+                var initResult = RzChromaBroadcastAPI.Init(_deviceProvider.GetGuid());
+                broadcastInitialized = true;
+
+                _logger.LogInformation("Razer Chroma Broadcast Init returned {Result}", initResult);
+
+                var registerResult = RzChromaBroadcastAPI.RegisterEventNotification(OnChromaBroadcastEvent);
+
+                _logger.LogInformation("Razer Chroma Broadcast RegisterEventNotification returned {Result}", registerResult);
+
+                if (initResult == RzResult.Success && registerResult == RzResult.Success)
+                    _logger.LogInformation("Chroma Control - {Provider} Started Succesfully!", _deviceProvider.Name);
+                else
+                    _logger.LogError("Chroma Control - {Provider} could not connect to Razer Chroma Broadcast", _deviceProvider.Name);
+
+                long lastFrames = 0;
+
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    await Task.Delay(30000, stoppingToken);
+
+                    var frames = Interlocked.Read(ref _framesReceived);
+
+                    _logger.LogDebug("Chroma effect frames: {Total} total, {Recent} in the last 30 seconds, {Failed} failed", frames, frames - lastFrames, Interlocked.Read(ref _framesFailed));
+
+                    lastFrames = frames;
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Stopping Chroma Control - {Provider}...", _deviceProvider.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogCritical(ex, "Chroma Control - {Provider} failed", _deviceProvider.Name);
+            }
+            finally
+            {
+                Shutdown(broadcastInitialized);
+            }
+        }
+
+        /// <summary>
+        /// Disconnects from Chroma and hands lighting control back
+        /// </summary>
+        /// <param name="broadcastInitialized">If the Chroma Broadcast SDK was initialized</param>
+        private void Shutdown(bool broadcastInitialized)
+        {
+            if (broadcastInitialized)
+            {
+                try
+                {
+                    RzChromaBroadcastAPI.UnRegisterEventNotification();
+                    RzChromaBroadcastAPI.UnInit();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed shutting down the Razer Chroma Broadcast SDK");
+                }
             }
 
-            _logger.LogInformation("Initializing Razer Chroma Broadcast SDK...");
-
-            RzChromaBroadcastAPI.Init(_deviceProvider.GetGuid());
-
-            RzChromaBroadcastAPI.RegisterEventNotification(OnChromaBroadcastEvent);
-
-            _logger.LogInformation($"Chroma Control - {_deviceProvider.Name} Started Succesfully!");
-
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                await Task.Delay(1000, stoppingToken);
+                _deviceProvider.ReleaseControl();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed releasing control of the {Provider} provider", _deviceProvider.Name);
             }
 
-            RzChromaBroadcastAPI.UnRegisterEventNotification();
-            RzChromaBroadcastAPI.UnInit();
+            _logger.LogInformation("Chroma Control - {Provider} Stopped", _deviceProvider.Name);
         }
 
         /// <summary>
@@ -95,44 +168,82 @@ namespace ChromaControl.Hosting
         /// <returns>A razer result</returns>
         private RzResult OnChromaBroadcastEvent(RzChromaBroadcastType type, RzChromaBroadcastStatus? status, RzChromaBroadcastEffect? effect)
         {
-            if (type == RzChromaBroadcastType.BroadcastEffect)
+            // This is called from native code: an exception must never escape it
+            try
             {
-                var currentColor = 0;
-
-                foreach (var device in _deviceProvider.Devices)
+                if (type == RzChromaBroadcastType.BroadcastEffect && effect.HasValue)
                 {
-                    foreach (var light in device.Lights)
+                    var frame = Interlocked.Increment(ref _framesReceived);
+
+                    if (frame == 1)
                     {
-                        var color = currentColor switch
-                        {
-                            0 => effect.Value.ChromaLink1,
-                            1 => effect.Value.ChromaLink2,
-                            2 => effect.Value.ChromaLink3,
-                            3 => effect.Value.ChromaLink4,
-                            4 => effect.Value.ChromaLink5,
-                            _ => Color.FromArgb(0, 0, 0)
-                        };
-
-                        if (currentColor == 4)
-                            currentColor = 0;
-                        else
-                            currentColor++;
-
-                        light.Color = color;
+                        _logger.LogInformation("First Chroma effect frame received: {Color1} {Color2} {Color3} {Color4} {Color5}",
+                            ToHex(effect.Value.ChromaLink1), ToHex(effect.Value.ChromaLink2), ToHex(effect.Value.ChromaLink3), ToHex(effect.Value.ChromaLink4), ToHex(effect.Value.ChromaLink5));
                     }
 
-                    device.ApplyLights();
+                    ApplyEffect(effect.Value);
+                }
+                else if (type == RzChromaBroadcastType.BroadcastStatus)
+                {
+                    if (status == RzChromaBroadcastStatus.Live)
+                        _logger.LogInformation("Razer Chroma Broadcast API Connected");
+                    else if (status == RzChromaBroadcastStatus.NotLive)
+                        _logger.LogInformation("Razer Chroma Broadcast API Disconnected");
                 }
             }
-            else if (type == RzChromaBroadcastType.BroadcastStatus)
+            catch (Exception ex)
             {
-                if (status == RzChromaBroadcastStatus.Live)
-                    _logger.LogInformation("Razer Chroma Broadcast API Connected");
-                else if (status == RzChromaBroadcastStatus.NotLive)
-                    _logger.LogInformation("Razer Chroma Broadcast API Disconnected");
+                var failures = Interlocked.Increment(ref _framesFailed);
+
+                if (failures == 1 || failures % 500 == 0)
+                    _logger.LogError(ex, "Failed handling a Chroma Broadcast event ({Failures} failure(s) so far)", failures);
             }
 
             return RzResult.Success;
+        }
+
+        /// <summary>
+        /// Applies a Chroma effect to every light of every device
+        /// </summary>
+        /// <param name="effect">The effect</param>
+        private void ApplyEffect(RzChromaBroadcastEffect effect)
+        {
+            var currentColor = 0;
+
+            foreach (var device in _deviceProvider.Devices)
+            {
+                foreach (var light in device.Lights)
+                {
+                    var color = currentColor switch
+                    {
+                        0 => effect.ChromaLink1,
+                        1 => effect.ChromaLink2,
+                        2 => effect.ChromaLink3,
+                        3 => effect.ChromaLink4,
+                        4 => effect.ChromaLink5,
+                        _ => Color.FromArgb(0, 0, 0)
+                    };
+
+                    if (currentColor == 4)
+                        currentColor = 0;
+                    else
+                        currentColor++;
+
+                    light.Color = color;
+                }
+
+                device.ApplyLights();
+            }
+        }
+
+        /// <summary>
+        /// Formats a color for the log
+        /// </summary>
+        /// <param name="color">The color</param>
+        /// <returns>The color as #RRGGBB</returns>
+        private static string ToHex(Color color)
+        {
+            return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         }
     }
 }

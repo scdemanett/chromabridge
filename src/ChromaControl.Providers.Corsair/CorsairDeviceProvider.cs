@@ -41,11 +41,13 @@ namespace ChromaControl.Providers.Corsair
         /// <summary>
         /// Initializes the provider
         /// </summary>
-        public void Initialize()
+        /// <param name="cancellationToken">Cancels the wait for devices</param>
+        public void Initialize(CancellationToken cancellationToken)
         {
             PerformHealthCheck();
 
-            Thread.Sleep(30000);
+            if (cancellationToken.WaitHandle.WaitOne(30000))
+                cancellationToken.ThrowIfCancellationRequested();
 
             for (var i = 0; i < CorsairLightingSDK.GetDeviceCount(); i++)
                 _devices.Add(new CorsairDevice(i));

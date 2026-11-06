@@ -4,6 +4,7 @@
 
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using AuraServiceLib;
 using ChromaControl.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,7 @@ namespace ChromaControl.Providers.Asus
         /// <summary>
         /// The device name
         /// </summary>
-        public string Name => _device.Name;
+        public string Name { get; }
 
         /// <summary>
         /// The lights the device has
@@ -33,7 +34,7 @@ namespace ChromaControl.Providers.Asus
         /// <summary>
         /// The number of lights on the device
         /// </summary>
-        public int NumberOfLights => _device.Lights.Count;
+        public int NumberOfLights => _lights.Count;
 
         /// <summary>
         /// The device
@@ -46,6 +47,11 @@ namespace ChromaControl.Providers.Asus
         private readonly ILogger<AsusDeviceProvider> _logger;
 
         /// <summary>
+        /// The number of failed applies
+        /// </summary>
+        private long _applyFailures;
+
+        /// <summary>
         /// Creates an Asus device
         /// </summary>
         /// <param name="device">The device</param>
@@ -56,9 +62,18 @@ namespace ChromaControl.Providers.Asus
             _lights = new List<AsusDeviceLight>();
             _logger = logger;
 
-            foreach (IAuraRgbLight light in _device.Lights)
+            Name = ReadName();
+
+            try
             {
-                _lights.Add(new AsusDeviceLight(light));
+                foreach (IAuraRgbLight light in _device.Lights)
+                {
+                    _lights.Add(new AsusDeviceLight(light));
+                }
+            }
+            catch (COMException ex)
+            {
+                _logger.LogError(ex, "Failed reading the lights of {Device} (HRESULT 0x{HResult:X8})", Name, ex.HResult);
             }
         }
 
@@ -74,7 +89,43 @@ namespace ChromaControl.Providers.Asus
             }
             catch (COMException ex)
             {
-                _logger.LogError(ex, "Failed Applying Lights");
+                // This runs for every Chroma frame, so only log the first failure and then every 500th
+                var failures = Interlocked.Increment(ref _applyFailures);
+
+                if (failures == 1 || failures % 500 == 0)
+                    _logger.LogError(ex, "Failed applying lights to {Device} (HRESULT 0x{HResult:X8}, {Failures} failure(s) so far)", Name, ex.HResult, failures);
+            }
+        }
+
+        /// <summary>
+        /// Describes the device for the log
+        /// </summary>
+        /// <returns>The description</returns>
+        internal string Describe()
+        {
+            try
+            {
+                return $"\"{Name}\" type 0x{_device.Type:X8}, {NumberOfLights} light(s), layout {_device.Width}x{_device.Height}";
+            }
+            catch (COMException ex)
+            {
+                return $"\"{Name}\" {NumberOfLights} light(s) (reading the device details failed: 0x{ex.HResult:X8})";
+            }
+        }
+
+        /// <summary>
+        /// Reads the device name
+        /// </summary>
+        /// <returns>The device name</returns>
+        private string ReadName()
+        {
+            try
+            {
+                return _device.Name;
+            }
+            catch (COMException)
+            {
+                return "Unknown Aura Device";
             }
         }
     }
