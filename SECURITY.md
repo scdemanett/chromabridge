@@ -1,13 +1,15 @@
-# Security Policy
+# Security
 
-## Supported Versions
+ChromaBridge's background helper runs with administrator rights, so security reports are
+taken seriously.
 
-This is the list versions being supported with security updates.
+## Reporting a vulnerability
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.x.x   | :white_check_mark: |
+Please do not open a public issue. Use GitHub's private reporting instead: on the
+repository's **Security** tab, choose **Report a vulnerability**.
 
-## Reporting a Vulnerability
+Include what you found, how to reproduce it, and which version you were running.
 
-To report a vulnerability please email [andrew.babbitt@outlook.com](mailto:andrew.babbitt@outlook.com). We will asses the risk and take the neccessary steps.
+## Supported versions
+
+Only the latest release is supported.

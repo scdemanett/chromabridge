@@ -1,13 +1,84 @@
-[![GitHub license](https://img.shields.io/github/license/ChromaControl/ChromaControl?style=for-the-badge&color=00bb00)](https://github.com/ChromaControl/ChromaControl/blob/main/LICENSE.txt)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa?style=for-the-badge)](CODE_OF_CONDUCT.md)
-[![GitHub issues](https://img.shields.io/github/issues/ChromaControl/ChromaControl?style=for-the-badge)](https://github.com/ChromaControl/ChromaControl/issues)
-[![Discord](https://img.shields.io/discord/800996203609194517?style=for-the-badge&logo=discord&label=Discord&color=7289DA)](https://discord.gg/6xGy7cycrt)
+# ChromaBridge
 
-# Chroma Control
-This repository contains the source code for Chroma Control.
+ChromaBridge makes RGB hardware from other brands follow Razer Chroma. Lighting effects
+from Razer Synapse, and from games and apps that support Chroma, show up on your
+motherboard, memory, sound card and other devices.
 
-## Getting Started
-This repository contains all the source code for Chroma Control. This includes the Chroma Control website, platform code, modules, as well as the configuration interface.
+It is an early release. Expect rough edges.
 
-## Download
-Downloads for Chroma Control can be found on the [Chroma Control website](https://chromacontrol.github.io) as well as on the [releases page](https://github.com/ChromaControl/ChromaControl/releases).
+## What it drives
+
+| Provider | Devices | Needs |
+|---|---|---|
+| ASUS Aura | Motherboard lighting and addressable headers | Armoury Crate |
+| Corsair iCUE | Whatever iCUE lists, for example memory | iCUE with its SDK turned on |
+| OpenRGB | Devices [OpenRGB](https://openrgb.org) supports that have no provider of their own | Nothing; ChromaBridge downloads and runs OpenRGB for you |
+
+## Requirements
+
+- Windows 10 or 11, 64-bit
+- Razer Synapse with Chroma Connect turned on
+- Administrator rights. ASUS only reports its devices to an administrator, so
+  ChromaBridge's background helper runs elevated.
+
+## Install
+
+Download the latest `ChromaBridge-x.y.z-setup.exe` from
+[Releases](https://github.com/scdemanett/ChromaBridge/releases) and run it. ChromaBridge
+starts with Windows and lives in the system tray.
+
+After installing:
+
+1. **Synapse.** Open Chroma Connect. ChromaBridge appears as "Chroma Control - ASUS",
+   "Chroma Control - Corsair" and, for OpenRGB, "Chroma Control - Gigabyte". Those names
+   belong to the Razer app IDs ChromaBridge uses and cannot be changed by ChromaBridge.
+2. **Chroma Studio.** A new entry stays dark until its tile is part of an effect layer.
+   Select the tile's lights in Chroma Studio and apply your layer to them.
+3. **Armoury Crate.** In Aura Sync's in-game lighting order, move `ChromaBridge.Host.exe`
+   to the top and confirm.
+
+## Using it
+
+Open ChromaBridge from the tray icon. For each provider you can:
+
+- turn the provider on or off
+- leave individual devices alone
+- choose how the five Chroma Link colors are laid out on each device
+- adjust gamma, saturation and brightness
+
+Lighting keeps working when the window is closed.
+
+## Updates
+
+ChromaBridge checks GitHub for a new release once a day and tells you when there is one.
+Nothing is downloaded or installed until you click Install. Before running an installer,
+ChromaBridge verifies that it is signed by the ChromaBridge publisher.
+
+## Good to know
+
+- OpenRGB is started without administrator rights and without its low-level bus driver,
+  and it is set to leave ASUS, Corsair and Razer devices alone so it does not compete with
+  their own software.
+- Some lights can only be one color. The GeForce RTX 5090 Founders Edition, for example,
+  can only be switched on or off.
+
+## Building
+
+Needs the .NET 10 SDK on Windows.
+
+```
+tools\fetch-icue-sdk.ps1
+dotnet build src\ChromaBridge.slnx
+```
+
+`tools\build-installer.ps1` builds the installer and needs Inno Setup 6.6 or later.
+Design notes are in [docs/phase-2-notes.md](docs/phase-2-notes.md).
+
+## Credits and license
+
+ChromaBridge began as a fork of [Chroma Control](https://github.com/ChromaControl/ChromaControl)
+by the Chroma Control Contributors and has since been rewritten. It is released under the
+[MIT license](LICENSE.txt).
+
+ChromaBridge is not affiliated with or endorsed by Razer, ASUS, Corsair, Creative, NVIDIA
+or the OpenRGB project. All product names are trademarks of their owners.
