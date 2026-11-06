@@ -59,6 +59,7 @@ namespace ChromaControl.Hosting
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
+                    services.Configure<LightingOptions>(hostContext.Configuration.GetSection("Lighting"));
                     services.AddHostedService<ModuleService>();
                 });
         }

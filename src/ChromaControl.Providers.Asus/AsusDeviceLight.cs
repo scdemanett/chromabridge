@@ -24,6 +24,11 @@ namespace ChromaControl.Providers.Asus
         internal IAuraRgbLight _deviceLight;
 
         /// <summary>
+        /// The last color written to the light, as 0x00BBGGRR, or null before the first write
+        /// </summary>
+        private uint? _lastColor;
+
+        /// <summary>
         /// Creates an Asus device light
         /// </summary>
         /// <param name="deviceLight">The device light</param>
@@ -47,9 +52,14 @@ namespace ChromaControl.Providers.Asus
         /// <param name="value">The color to set it to</param>
         private void SetColor(Color value)
         {
-            _deviceLight.Red = value.R;
-            _deviceLight.Green = value.G;
-            _deviceLight.Blue = value.B;
+            // One call instead of three: Aura takes the whole color as 0x00BBGGRR
+            var color = (uint)(value.R | (value.G << 8) | (value.B << 16));
+
+            if (_lastColor == color)
+                return;
+
+            _deviceLight.Color = color;
+            _lastColor = color;
         }
     }
 }

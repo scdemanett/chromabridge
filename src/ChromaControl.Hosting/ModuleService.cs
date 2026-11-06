@@ -3,6 +3,8 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
@@ -12,6 +14,7 @@ using ChromaBroadcast;
 using ChromaControl.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ChromaControl.Hosting
 {
@@ -31,6 +34,21 @@ namespace ChromaControl.Hosting
         private readonly IDeviceProvider _deviceProvider;
 
         /// <summary>
+        /// The color correction in use, replaced whenever the settings file changes
+        /// </summary>
+        private volatile ColorCorrection _colorCorrection;
+
+        /// <summary>
+        /// The lighting options
+        /// </summary>
+        private readonly IOptionsMonitor<LightingOptions> _lightingOptions;
+
+        /// <summary>
+        /// One worker per device being driven. Empty until the devices are known.
+        /// </summary>
+        private volatile DeviceWorker[] _workers = Array.Empty<DeviceWorker>();
+
+        /// <summary>
         /// The number of effect frames received from Chroma
         /// </summary>
         private long _framesReceived;
@@ -45,10 +63,28 @@ namespace ChromaControl.Hosting
         /// </summary>
         /// <param name="logger">The logger</param>
         /// <param name="deviceProvider">The device provider</param>
-        public ModuleService(ILogger<ModuleService> logger, IDeviceProvider deviceProvider)
+        /// <param name="lightingOptions">The lighting options</param>
+        public ModuleService(ILogger<ModuleService> logger, IDeviceProvider deviceProvider, IOptionsMonitor<LightingOptions> lightingOptions)
         {
             _logger = logger;
             _deviceProvider = deviceProvider;
+            _lightingOptions = lightingOptions;
+
+            SetColorCorrection(lightingOptions.CurrentValue);
+            lightingOptions.OnChange(SetColorCorrection);
+        }
+
+        /// <summary>
+        /// Replaces the color correction
+        /// </summary>
+        /// <param name="options">The lighting options</param>
+        private void SetColorCorrection(LightingOptions options)
+        {
+            var correction = new ColorCorrection(options);
+
+            _colorCorrection = correction;
+
+            _logger.LogInformation("Color correction: saturation {Saturation}, gamma {Gamma}, brightness {Brightness}", correction.Saturation, correction.Gamma, correction.Brightness);
         }
 
         /// <summary>
@@ -78,12 +114,12 @@ namespace ChromaControl.Hosting
                 // Blocks until the provider has devices, so control is never taken with nothing to drive
                 _deviceProvider.Initialize(stoppingToken);
 
-                foreach (var device in _deviceProvider.Devices)
-                {
-                    _logger.LogInformation("Found Device: {Device} - {Lights} Lights", device.Name, device.Lights.Count());
-                }
-
                 _deviceProvider.RequestControl();
+
+                _workers = CreateWorkers();
+
+                foreach (var worker in _workers)
+                    worker.Start(stoppingToken);
 
                 _logger.LogInformation("Initializing Razer Chroma Broadcast SDK...");
 
@@ -102,6 +138,8 @@ namespace ChromaControl.Hosting
                     _logger.LogError("Chroma Control - {Provider} could not connect to Razer Chroma Broadcast", _deviceProvider.Name);
 
                 long lastFrames = 0;
+                var lastApplied = new long[_workers.Length];
+                var lastTicks = new long[_workers.Length];
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -109,7 +147,20 @@ namespace ChromaControl.Hosting
 
                     var frames = Interlocked.Read(ref _framesReceived);
 
-                    _logger.LogDebug("Chroma effect frames: {Total} total, {Recent} in the last 30 seconds, {Failed} failed", frames, frames - lastFrames, Interlocked.Read(ref _framesFailed));
+                    _logger.LogDebug("Chroma effect frames in the last 30 seconds: {Received} received ({Rate:F1} per second)", frames - lastFrames, (frames - lastFrames) / 30.0);
+
+                    for (var i = 0; i < _workers.Length; i++)
+                    {
+                        var applied = _workers[i].Applied;
+                        var ticks = _workers[i].ApplyTicks;
+                        var recent = applied - lastApplied[i];
+                        var averageMs = recent > 0 ? (ticks - lastTicks[i]) * 1000.0 / Stopwatch.Frequency / recent : 0;
+
+                        _logger.LogDebug("  {Device}: {Applied} applied ({Rate:F1} per second), {AverageMs:F1} ms each, {Failed} failed in total", _workers[i].Name, recent, recent / 30.0, averageMs, _workers[i].Failures);
+
+                        lastApplied[i] = applied;
+                        lastTicks[i] = ticks;
+                    }
 
                     lastFrames = frames;
                 }
@@ -147,6 +198,10 @@ namespace ChromaControl.Hosting
                 }
             }
 
+            // The workers stop with the stopping token; wait so none is mid-write when control is released
+            foreach (var worker in _workers)
+                worker.Join();
+
             try
             {
                 _deviceProvider.ReleaseControl();
@@ -181,7 +236,9 @@ namespace ChromaControl.Hosting
                             ToHex(effect.Value.ChromaLink1), ToHex(effect.Value.ChromaLink2), ToHex(effect.Value.ChromaLink3), ToHex(effect.Value.ChromaLink4), ToHex(effect.Value.ChromaLink5));
                     }
 
-                    ApplyEffect(effect.Value);
+                    // Hand the frame to the device workers so the callback returns immediately
+                    foreach (var worker in _workers)
+                        worker.Post(effect.Value);
                 }
                 else if (type == RzChromaBroadcastType.BroadcastStatus)
                 {
@@ -203,37 +260,34 @@ namespace ChromaControl.Hosting
         }
 
         /// <summary>
-        /// Applies a Chroma effect to every light of every device
+        /// Creates one worker per device, leaving out devices excluded in the settings
         /// </summary>
-        /// <param name="effect">The effect</param>
-        private void ApplyEffect(RzChromaBroadcastEffect effect)
+        /// <returns>The workers</returns>
+        private DeviceWorker[] CreateWorkers()
         {
-            var currentColor = 0;
+            var excluded = _lightingOptions.CurrentValue.ExcludedDevices ?? Array.Empty<string>();
+            var workers = new List<DeviceWorker>();
+            var lightIndex = 0;
 
             foreach (var device in _deviceProvider.Devices)
             {
-                foreach (var light in device.Lights)
+                var lights = device.Lights.Count();
+
+                if (excluded.Any(x => string.Equals(x?.Trim(), device.Name, StringComparison.OrdinalIgnoreCase)))
                 {
-                    var color = currentColor switch
-                    {
-                        0 => effect.ChromaLink1,
-                        1 => effect.ChromaLink2,
-                        2 => effect.ChromaLink3,
-                        3 => effect.ChromaLink4,
-                        4 => effect.ChromaLink5,
-                        _ => Color.FromArgb(0, 0, 0)
-                    };
-
-                    if (currentColor == 4)
-                        currentColor = 0;
-                    else
-                        currentColor++;
-
-                    light.Color = color;
+                    _logger.LogInformation("Skipped Device (excluded in settings): {Device} - {Lights} Lights", device.Name, lights);
+                    continue;
                 }
 
-                device.ApplyLights();
+                _logger.LogInformation("Found Device: {Device} - {Lights} Lights", device.Name, lights);
+
+                // The five Chroma Link colors repeat along all lights of all devices in order
+                workers.Add(new DeviceWorker(device, lightIndex % 5, () => _colorCorrection, _logger));
+
+                lightIndex += lights;
             }
+
+            return workers.ToArray();
         }
 
         /// <summary>
