@@ -72,7 +72,6 @@ dotnet build src\ChromaBridge.slnx
 ```
 
 `tools\build-installer.ps1` builds the installer and needs Inno Setup 6.6 or later.
-Design notes are in [docs/phase-2-notes.md](docs/phase-2-notes.md).
 
 ## Credits and license
 

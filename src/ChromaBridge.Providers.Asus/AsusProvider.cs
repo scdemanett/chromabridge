@@ -9,7 +9,7 @@ namespace ChromaBridge.Providers.Asus;
 /// <summary>
 /// Drives ASUS Aura devices through the Aura SDK that Armoury Crate installs.
 ///
-/// Things the SDK does not tell you (see docs/phase-2-notes.md):
+/// Things the SDK does not tell you:
 /// - It only reports devices to an elevated process.
 /// - Armoury Crate grants control by exe path through its in-game lighting order;
 ///   SwitchMode() silently does nothing when another app has higher priority.

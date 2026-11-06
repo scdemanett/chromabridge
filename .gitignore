@@ -461,3 +461,6 @@ src/ChromaBridge.Providers.Corsair/native/
 
 # The Azure Artifact Signing client, fetched for signing (see tools/sign.ps1)
 signing/.artifact-signing/
+
+# Working notes, kept local
+docs/
