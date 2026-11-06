@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The detector names of the pinned OpenRGB release, used to write its settings -->
+    <EmbeddedResource Include="OpenRgb\Detectors-1.1.txt" LogicalName="ChromaBridge.Service.OpenRgb.Detectors-1.1.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ChromaBridge.Core\ChromaBridge.Core.csproj" />
     <!-- Not referenced in code: built first so the host exe sits beside the service -->
     <ProjectReference Include="..\ChromaBridge.Host\ChromaBridge.Host.csproj" ReferenceOutputAssembly="false" />

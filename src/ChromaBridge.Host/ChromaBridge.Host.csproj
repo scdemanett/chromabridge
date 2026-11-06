@@ -9,6 +9,7 @@
     <ProjectReference Include="..\ChromaBridge.Core\ChromaBridge.Core.csproj" />
     <ProjectReference Include="..\ChromaBridge.Providers.Asus\ChromaBridge.Providers.Asus.csproj" />
     <ProjectReference Include="..\ChromaBridge.Providers.Corsair\ChromaBridge.Providers.Corsair.csproj" />
+    <ProjectReference Include="..\ChromaBridge.Providers.OpenRgb\ChromaBridge.Providers.OpenRgb.csproj" />
   </ItemGroup>
 
 </Project>

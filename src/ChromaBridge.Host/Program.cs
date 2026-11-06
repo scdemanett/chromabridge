@@ -4,6 +4,7 @@ using ChromaBridge.Chroma;
 using ChromaBridge.Providers;
 using ChromaBridge.Providers.Asus;
 using ChromaBridge.Providers.Corsair;
+using ChromaBridge.Providers.OpenRgb;
 
 namespace ChromaBridge.Host;
 
@@ -77,6 +78,8 @@ internal static class Program
         {
             s_state = ProviderState.WaitingForDevices;
 
+            provider.Configure(s_settings);
+
             var devices = provider.Connect(message => s_message = message, s_stopping.Token);
 
             s_workers = CreateWorkers(devices);
@@ -140,6 +143,7 @@ internal static class Program
     {
         KnownProviders.Asus => new AsusProvider(),
         KnownProviders.Corsair => new CorsairProvider(),
+        KnownProviders.OpenRgb => new OpenRgbProvider(),
         _ => null
     };
 

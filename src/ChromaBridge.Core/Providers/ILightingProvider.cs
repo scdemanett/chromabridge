@@ -12,6 +12,13 @@ public interface ILightingProvider : IDisposable
     string Id { get; }
 
     /// <summary>
+    /// Gives the provider its settings before <see cref="Connect"/>. Most providers need none.
+    /// </summary>
+    void Configure(ProviderSettings settings)
+    {
+    }
+
+    /// <summary>
     /// Waits until the vendor software reports devices, takes lighting control, and returns
     /// the devices. Blocks, retrying, until there is at least one device or the token is
     /// cancelled.

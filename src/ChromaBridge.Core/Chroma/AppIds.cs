@@ -19,7 +19,11 @@ public static class AppIds
     private static readonly Dictionary<string, string> s_builtInNames = new(StringComparer.OrdinalIgnoreCase)
     {
         [KnownProviders.Asus] = "ChromaControl.Asus",
-        [KnownProviders.Corsair] = "ChromaControl.Corsair"
+        [KnownProviders.Corsair] = "ChromaControl.Corsair",
+
+        // Razer has no ID registered for OpenRGB; this is a spare one issued to Chroma
+        // Control, so Synapse lists the OpenRGB provider as "Chroma Control - Gigabyte"
+        [KnownProviders.OpenRgb] = "ChromaControl.Gigabyte"
     };
 
     public static Guid Get(string providerId)

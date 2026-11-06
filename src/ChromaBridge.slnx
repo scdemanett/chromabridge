@@ -12,6 +12,9 @@
   <Project Path="ChromaBridge.Providers.Corsair/ChromaBridge.Providers.Corsair.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="ChromaBridge.Providers.OpenRgb/ChromaBridge.Providers.OpenRgb.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="ChromaBridge.Service/ChromaBridge.Service.csproj">
     <Platform Project="x64" />
   </Project>

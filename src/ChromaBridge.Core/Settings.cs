@@ -9,12 +9,14 @@ public static class KnownProviders
 {
     public const string Asus = "asus";
     public const string Corsair = "corsair";
+    public const string OpenRgb = "openrgb";
 
     /// <summary>Provider IDs in display order, with their display names.</summary>
     public static readonly IReadOnlyList<(string Id, string DisplayName)> All =
     [
         (Asus, "ASUS Aura"),
-        (Corsair, "Corsair iCUE")
+        (Corsair, "Corsair iCUE"),
+        (OpenRgb, "OpenRGB")
     ];
 
     public static string DisplayName(string id)
@@ -45,6 +47,12 @@ public sealed class ProviderSettings
 
     /// <summary>Names of devices to leave alone.</summary>
     public List<string> ExcludedDevices { get; set; } = [];
+
+    /// <summary>
+    /// Vendor names whose devices this provider must leave alone because another provider
+    /// drives them. Filled in by the service, not by the user.
+    /// </summary>
+    public List<string> SkipVendors { get; set; } = [];
 
     /// <summary>How the five Chroma Link colors are laid out on each device, by device name.</summary>
     public Dictionary<string, ZoneMapping> Mappings { get; set; } = [];
@@ -79,15 +87,19 @@ public sealed class ProviderSettings
         Saturation = Saturation,
         Brightness = Brightness,
         ExcludedDevices = [.. ExcludedDevices],
+        SkipVendors = [.. SkipVendors],
         Mappings = new Dictionary<string, ZoneMapping>(Mappings)
     };
 
-    /// <summary>True when the set of excluded devices differs, ignoring order and case.</summary>
+    /// <summary>True when which devices are driven differs: excluded devices or skipped vendors.</summary>
     public bool ExclusionsDiffer(ProviderSettings other)
     {
         var mine = new HashSet<string>(ExcludedDevices.Select(x => x.Trim()), StringComparer.OrdinalIgnoreCase);
 
-        return !mine.SetEquals(other.ExcludedDevices.Select(x => x.Trim()));
+        if (!mine.SetEquals(other.ExcludedDevices.Select(x => x.Trim())))
+            return true;
+
+        return !new HashSet<string>(SkipVendors, StringComparer.OrdinalIgnoreCase).SetEquals(other.SkipVendors);
     }
 }
 
@@ -128,7 +140,21 @@ public sealed class BridgeSettings
         {
             settings.ExcludedDevices ??= [];
             settings.Mappings ??= [];
+            settings.SkipVendors = [];
         }
+
+        // OpenRGB can see the same hardware as the native providers; two writers on one
+        // device fight, so OpenRGB leaves a vendor alone while its native provider is on.
+        var openRgb = For(KnownProviders.OpenRgb);
+
+        // Razer's own devices are lit by Synapse, which is also where the colors come from
+        openRgb.SkipVendors.Add("Razer");
+
+        if (For(KnownProviders.Asus).Enabled)
+            openRgb.SkipVendors.Add("ASUS");
+
+        if (For(KnownProviders.Corsair).Enabled)
+            openRgb.SkipVendors.Add("Corsair");
 
         return this;
     }
@@ -139,6 +165,9 @@ public sealed class BridgeSettings
     {
         // ASUS addressable LEDs look washed out without gamma correction
         KnownProviders.Asus => new ProviderSettings { Gamma = 2.0 },
+
+        // Off until the user turns it on: it needs OpenRGB installed and running
+        KnownProviders.OpenRgb => new ProviderSettings { Enabled = false },
         _ => new ProviderSettings()
     };
 }

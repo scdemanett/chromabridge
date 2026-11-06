@@ -1,5 +1,7 @@
 // Licensed under the MIT license. See LICENSE.txt in the project root.
 
+using ChromaBridge.Service.OpenRgb;
+
 namespace ChromaBridge.Service;
 
 /// <summary>
@@ -19,6 +21,8 @@ internal static class Program
 {
     private static readonly object s_settingsLock = new();
     private static readonly Dictionary<string, ProviderSupervisor> s_supervisors = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly OpenRgbManager s_openRgb = new();
 
     private static BridgeSettings s_settings = new();
     private static bool s_startsAtLogin;
@@ -72,6 +76,9 @@ internal static class Program
         foreach (var supervisor in s_supervisors.Values)
             supervisor.Start();
 
+        ConfigureOpenRgb(s_settings);
+        s_openRgb.Start(stopping.Token);
+
         new ControlPipeServer(Handle).Start(stopping.Token);
 
         Log.Info("Ready");
@@ -84,6 +91,9 @@ internal static class Program
 
         // Stop the hosts together: each one waits for its own devices to be released
         Task.WaitAll([.. s_supervisors.Values.Select(x => Task.Run(x.Stop))], TimeSpan.FromSeconds(15));
+
+        // After the hosts, so the OpenRGB provider is not still writing to it
+        s_openRgb.Stop();
 
         Log.Info("Stopped");
 
@@ -127,8 +137,17 @@ internal static class Program
             foreach (var (id, supervisor) in s_supervisors)
                 supervisor.UpdateSettings(s_settings.For(id));
 
+            ConfigureOpenRgb(s_settings);
+
             return new BridgeMessage { Type = MessageTypes.Settings, Settings = s_settings.Clone() };
         }
+    }
+
+    private static void ConfigureOpenRgb(BridgeSettings settings)
+    {
+        var openRgb = settings.For(KnownProviders.OpenRgb);
+
+        s_openRgb.Configure(openRgb.Enabled, openRgb.SkipVendors);
     }
 
     private static string? ReadOption(string[] args, string name)
@@ -161,7 +180,26 @@ internal static class Program
         var status = new BridgeStatus { Version = ProcessInfo.Version, Elevated = ProcessInfo.IsElevated, StartsAtLogin = StartsAtLogin() };
 
         foreach (var (id, _) in KnownProviders.All)
-            status.Providers.Add(s_supervisors[id].Status);
+        {
+            var providerStatus = s_supervisors[id].Status;
+
+            // While OpenRGB itself is being downloaded or started, say that instead of the
+            // provider's "waiting for OpenRGB"
+            if (id == KnownProviders.OpenRgb && providerStatus.State != ProviderState.Running && s_openRgb.Message is { } message)
+            {
+                providerStatus = new ProviderStatus
+                {
+                    Id = providerStatus.Id,
+                    DisplayName = providerStatus.DisplayName,
+                    State = providerStatus.State,
+                    Message = message,
+                    Elevated = providerStatus.Elevated,
+                    Devices = providerStatus.Devices
+                };
+            }
+
+            status.Providers.Add(providerStatus);
+        }
 
         return status;
     }

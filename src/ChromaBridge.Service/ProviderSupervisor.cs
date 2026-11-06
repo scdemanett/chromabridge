@@ -29,7 +29,7 @@ internal sealed class ProviderSupervisor
     {
         _id = id;
         _settings = settings.Clone();
-        _status = CreateStatus(ProviderState.Disabled, "Turned off.");
+        _status = CreateStatus(ProviderState.Disabled, OffMessage);
     }
 
     public ProviderStatus Status
@@ -61,7 +61,7 @@ internal sealed class ProviderSupervisor
             if (!_settings.Enabled)
             {
                 StopHost();
-                _status = CreateStatus(ProviderState.Disabled, "Turned off.");
+                _status = CreateStatus(ProviderState.Disabled, OffMessage);
                 return;
             }
 
@@ -273,6 +273,10 @@ internal sealed class ProviderSupervisor
             return -1;
         }
     }
+
+    private string OffMessage => _id == KnownProviders.OpenRgb
+        ? "Turned off. Turning it on downloads OpenRGB (22 MB) and runs it in the background to reach devices that have no provider of their own."
+        : "Turned off.";
 
     private ProviderStatus CreateStatus(ProviderState state, string message) => new()
     {
