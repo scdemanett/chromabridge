@@ -458,3 +458,6 @@ src/ChromaBridge.Providers.Corsair/native/
 
 # The tray app project folder ends in ".App", which the "*.app" rule above would hide
 !src/ChromaBridge.App/
+
+# The Azure Artifact Signing client, fetched for signing (see tools/sign.ps1)
+signing/.artifact-signing/

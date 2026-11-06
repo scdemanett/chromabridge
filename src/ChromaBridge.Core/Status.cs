@@ -68,6 +68,48 @@ public sealed class ProviderStatus
     public List<DeviceStatus> Devices { get; set; } = [];
 }
 
+public enum UpdateState
+{
+    /// <summary>No check has run yet.</summary>
+    Idle,
+
+    Checking,
+
+    UpToDate,
+
+    /// <summary>A newer version exists. Nothing is downloaded until the user asks.</summary>
+    Available,
+
+    Downloading,
+
+    Verifying,
+
+    Installing,
+
+    Failed
+}
+
+/// <summary>
+/// What the updater knows.
+/// </summary>
+public sealed class UpdateStatus
+{
+    public UpdateState State { get; set; }
+
+    /// <summary>The newer version, when one is available.</summary>
+    public string? LatestVersion { get; set; }
+
+    public string Message { get; set; } = "";
+
+    /// <summary>The release's page on GitHub.</summary>
+    public string? ReleaseUrl { get; set; }
+
+    /// <summary>When the last check finished, in UTC.</summary>
+    public DateTime? LastChecked { get; set; }
+
+    public UpdateStatus Clone() => (UpdateStatus)MemberwiseClone();
+}
+
 /// <summary>
 /// The state of the whole bridge, as the service reports it to the tray app.
 /// </summary>
@@ -79,6 +121,8 @@ public sealed class BridgeStatus
 
     /// <summary>True when the scheduled task that starts the helper at login exists.</summary>
     public bool StartsAtLogin { get; set; }
+
+    public UpdateStatus Update { get; set; } = new();
 
     public List<ProviderStatus> Providers { get; set; } = [];
 }

@@ -43,6 +43,14 @@ public partial class App : Application
             Visible = true
         };
 
+        // A new version is announced once from the tray; installing it is the user's click
+        _trayIcon.BalloonTipClicked += (_, _) => ShowWindow();
+        _viewModel.UpdateFound += version => _trayIcon.ShowBalloonTip(
+            10000,
+            "ChromaBridge update",
+            $"Version {version} is available. Open ChromaBridge to install it.",
+            Forms.ToolTipIcon.Info);
+
         _trayIcon.MouseClick += (_, args) =>
         {
             if (args.Button == Forms.MouseButtons.Left)

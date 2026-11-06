@@ -1,8 +1,11 @@
 ; Inno Setup 6 script for ChromaBridge.
-; Build: run tools\publish.ps1, then compile this file with ISCC.exe.
+; Build: run tools\build-installer.ps1 (add -Sign for a release).
 
 #define AppName "ChromaBridge"
-#define AppVersion "0.1.0"
+; The version is passed in by tools\build-installer.ps1 (/DAppVersion=x.y.z)
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
 #define TaskName "ChromaBridge Helper"
 
 [Setup]

@@ -1,6 +1,7 @@
 // Licensed under the MIT license. See LICENSE.txt in the project root.
 
 using ChromaBridge.Service.OpenRgb;
+using ChromaBridge.Service.Updates;
 
 namespace ChromaBridge.Service;
 
@@ -23,6 +24,7 @@ internal static class Program
     private static readonly Dictionary<string, ProviderSupervisor> s_supervisors = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly OpenRgbManager s_openRgb = new();
+    private static readonly UpdateManager s_updates = new();
 
     private static BridgeSettings s_settings = new();
     private static bool s_startsAtLogin;
@@ -79,6 +81,10 @@ internal static class Program
         ConfigureOpenRgb(s_settings);
         s_openRgb.Start(stopping.Token);
 
+        UpdateManager.RelaunchTrayAfterUpdate();
+        s_updates.SetAutomatic(s_settings.CheckForUpdates);
+        s_updates.Start(stopping.Token);
+
         new ControlPipeServer(Handle).Start(stopping.Token);
 
         Log.Info("Ready");
@@ -114,6 +120,15 @@ internal static class Program
             case MessageTypes.SetSettings when request.Settings != null:
                 return ApplySettings(request.Settings);
 
+            case MessageTypes.CheckForUpdates:
+                s_updates.RequestCheck();
+                return new BridgeMessage { Type = MessageTypes.Status, Status = CreateStatus() };
+
+            // The client only asks; what gets installed is decided and verified here
+            case MessageTypes.InstallUpdate:
+                s_updates.RequestInstall();
+                return new BridgeMessage { Type = MessageTypes.Status, Status = CreateStatus() };
+
             default:
                 return new BridgeMessage { Type = MessageTypes.Error, Error = $"Unknown request '{request.Type}'." };
         }
@@ -138,6 +153,7 @@ internal static class Program
                 supervisor.UpdateSettings(s_settings.For(id));
 
             ConfigureOpenRgb(s_settings);
+            s_updates.SetAutomatic(s_settings.CheckForUpdates);
 
             return new BridgeMessage { Type = MessageTypes.Settings, Settings = s_settings.Clone() };
         }
@@ -177,7 +193,7 @@ internal static class Program
 
     private static BridgeStatus CreateStatus()
     {
-        var status = new BridgeStatus { Version = ProcessInfo.Version, Elevated = ProcessInfo.IsElevated, StartsAtLogin = StartsAtLogin() };
+        var status = new BridgeStatus { Version = ProcessInfo.Version, Elevated = ProcessInfo.IsElevated, StartsAtLogin = StartsAtLogin(), Update = s_updates.Status };
 
         foreach (var (id, _) in KnownProviders.All)
         {

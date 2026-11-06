@@ -15,6 +15,8 @@ public static class MessageTypes
     public const string GetStatus = "getStatus";
     public const string GetSettings = "getSettings";
     public const string SetSettings = "setSettings";
+    public const string CheckForUpdates = "checkForUpdates";
+    public const string InstallUpdate = "installUpdate";
 
     // Service -> tray app
     public const string Status = "status";

@@ -1,0 +1,93 @@
+name: Release
+
+# Pushing a tag "vX.Y.Z" builds the signed installer and publishes it as a GitHub release.
+# The tag must match <Version> in src/Directory.Build.props. Installed copies find the
+# release through the updater, which only accepts an installer signed by this workflow's
+# Azure Artifact Signing identity.
+#
+# One-time setup in this repository:
+#   - an environment named "release"
+#   - Actions variables AZURE_CLIENT_ID and AZURE_TENANT_ID
+#   - on the Entra app those IDs belong to, a federated credential for this repository's
+#     "release" environment, and the Artifact Signing "Certificate Profile Signer" role
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build, sign and publish
+    runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      SIGNING_CLIENT_VERSION: 1.0.146
+      INNO_SETUP_VERSION: 6.7.3
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check the tag matches the version
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [xml]$props = Get-Content src\Directory.Build.props
+          $version = ($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
+          if ($env:TAG -ne "v$version") { throw "Tag $env:TAG does not match version $version in src\Directory.Build.props." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Fetch the iCUE SDK library
+        shell: pwsh
+        run: tools\fetch-icue-sdk.ps1
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $tag = "is-" + ($env:INNO_SETUP_VERSION -replace '\.', '_')
+          $setup = "$env:RUNNER_TEMP\innosetup.exe"
+          Invoke-WebRequest "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$env:INNO_SETUP_VERSION.exe" -OutFile $setup
+          $signature = Get-AuthenticodeSignature $setup
+          if ($signature.Status -ne 'Valid') { throw "The Inno Setup download is not validly signed ($($signature.Status))." }
+          Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/ALLUSERS' -Wait
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Fetch the Artifact Signing client
+        shell: pwsh
+        run: |
+          az account get-access-token --resource https://codesigning.azure.net --query expiresOn -o tsv
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $package = "$env:RUNNER_TEMP\artifact-signing-client.zip"
+          Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.ArtifactSigning.Client/$env:SIGNING_CLIENT_VERSION" -OutFile $package
+          Expand-Archive $package -DestinationPath signing\.artifact-signing
+
+      - name: Build and sign the installer
+        shell: pwsh
+        run: tools\build-installer.ps1 -Sign
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $installer = "artifacts\installer\ChromaBridge-$env:VERSION-setup.exe"
+          gh release create $env:TAG $installer --title "ChromaBridge $env:VERSION" --generate-notes

@@ -53,6 +53,10 @@ public sealed class BridgeClient : IDisposable
 
     public Task<BridgeMessage?> SetSettingsAsync(BridgeSettings settings, CancellationToken cancellationToken = default) => SendAsync(new BridgeMessage { Type = MessageTypes.SetSettings, Settings = settings }, cancellationToken);
 
+    public Task<BridgeMessage?> CheckForUpdatesAsync(CancellationToken cancellationToken = default) => SendAsync(new BridgeMessage { Type = MessageTypes.CheckForUpdates }, cancellationToken);
+
+    public Task<BridgeMessage?> InstallUpdateAsync(CancellationToken cancellationToken = default) => SendAsync(new BridgeMessage { Type = MessageTypes.InstallUpdate }, cancellationToken);
+
     private async Task ConnectAsync(CancellationToken cancellationToken)
     {
         Disconnect();

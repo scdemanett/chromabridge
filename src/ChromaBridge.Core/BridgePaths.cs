@@ -9,6 +9,12 @@ public static class BridgePaths
 {
     public const string ProductName = "ChromaBridge";
 
+    /// <summary>
+    /// The GitHub repository ("owner/name") whose releases the updater installs. Installed
+    /// copies keep asking this address, so do not change it without leaving a redirect.
+    /// </summary>
+    public const string UpdateRepository = "scdemanett/ChromaBridge";
+
     /// <summary>The named pipe the tray app uses to talk to the service.</summary>
     public const string ControlPipeName = "ChromaBridge.Control";
 

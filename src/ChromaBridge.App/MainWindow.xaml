@@ -75,6 +75,23 @@
         </Style>
     </Window.Resources>
 
+    <DockPanel>
+        <!-- Version and updates: fixed at the bottom of the window, outside the scrolling area -->
+        <Border DockPanel.Dock="Bottom" Padding="20,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                Visibility="{Binding Connected, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Check now" Command="{Binding CheckNowCommand}" IsEnabled="{Binding UpdateIdle}" Padding="14,5" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding CheckForUpdates}" Content="Check for updates automatically" Margin="12,0,0,0"
+                          ToolTip="Look for a new version once a day. Finding one only tells you; it is never installed without your say-so." />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding VersionText}" Style="{StaticResource Secondary}" />
+                    <TextBlock Text="{Binding UpdateText}" Style="{StaticResource Secondary}" />
+                    <TextBlock Text="{Binding LastCheckedText}" Style="{StaticResource Secondary}"
+                               Visibility="{Binding HasLastChecked, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
 
@@ -85,6 +102,19 @@
                 <TextBlock Text="ChromaBridge" FontSize="24" FontWeight="SemiBold" />
             </DockPanel>
             <TextBlock Text="{Binding HelperText}" Style="{StaticResource Secondary}" Margin="0,4,0,16" />
+
+            <!-- Shown when a newer version is waiting. Nothing is downloaded until Install is clicked. -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12" Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Install" Command="{Binding InstallUpdateCommand}" Padding="20,6" VerticalAlignment="Center"
+                            Style="{DynamicResource AccentButtonStyle}" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding UpdateTitle}" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Secondary}" Margin="0,4,0,0"
+                                   Text="Installing downloads the new version, checks that it is a genuine release, and restarts ChromaBridge. Lighting pauses for a few seconds." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
 
             <!-- Shown when the helper cannot be reached -->
             <Border Style="{StaticResource Card}" Margin="0,0,0,12" Visibility="{Binding NotConnected, Converter={StaticResource BoolToVisibility}}">
@@ -200,4 +230,5 @@
 
         </StackPanel>
     </ScrollViewer>
+    </DockPanel>
 </Window>

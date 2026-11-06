@@ -319,11 +319,90 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _settingsLoaded;
     private bool _connected;
     private bool _startsAtLogin;
+    private bool _checkForUpdates = true;
+    private bool _updateAvailable;
+    private bool _updateBusy;
+    private bool _pendingCheck;
+    private bool _pendingInstall;
+    private string _updateTitle = "";
+    private string _updateText = "";
+    private string _versionText = "";
+    private string _lastCheckedText = "";
+    private string? _notifiedVersion;
     private string _helperText = "Connecting to the helper...";
 
     public ObservableCollection<ProviderViewModel> Providers { get; } = [];
 
     public ICommand StartHelperCommand { get; }
+
+    public ICommand CheckNowCommand { get; }
+
+    public ICommand InstallUpdateCommand { get; }
+
+    /// <summary>Raised once per new version, with the version, so the tray icon can announce it.</summary>
+    public event Action<string>? UpdateFound;
+
+    /// <summary>Look for a new version once a day. Finding one never installs it.</summary>
+    public bool CheckForUpdates
+    {
+        get => _checkForUpdates;
+        set
+        {
+            if (Set(ref _checkForUpdates, value))
+                OnSettingsEdited();
+        }
+    }
+
+    /// <summary>True while a newer version is waiting for the user to install it.</summary>
+    public bool UpdateAvailable
+    {
+        get => _updateAvailable;
+        private set => Set(ref _updateAvailable, value);
+    }
+
+    /// <summary>True while a check, download or install is running.</summary>
+    public bool UpdateBusy
+    {
+        get => _updateBusy;
+        private set
+        {
+            if (Set(ref _updateBusy, value))
+                Raise(nameof(UpdateIdle));
+        }
+    }
+
+    public bool UpdateIdle => !UpdateBusy;
+
+    public string UpdateTitle
+    {
+        get => _updateTitle;
+        private set => Set(ref _updateTitle, value);
+    }
+
+    public string UpdateText
+    {
+        get => _updateText;
+        private set => Set(ref _updateText, value);
+    }
+
+    /// <summary>When the last update check finished, on its own line. Empty before the first check.</summary>
+    public string LastCheckedText
+    {
+        get => _lastCheckedText;
+        private set
+        {
+            if (Set(ref _lastCheckedText, value))
+                Raise(nameof(HasLastChecked));
+        }
+    }
+
+    public bool HasLastChecked => LastCheckedText.Length > 0;
+
+    public string VersionText
+    {
+        get => _versionText;
+        private set => Set(ref _versionText, value);
+    }
 
     public bool Connected
     {
@@ -370,6 +449,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         StartHelperCommand = new RelayCommand(StartHelper);
 
+        // Sent on the next poll: the connection carries one request at a time
+        CheckNowCommand = new RelayCommand(() =>
+        {
+            _pendingCheck = true;
+            _ = PollAsync();
+        });
+
+        InstallUpdateCommand = new RelayCommand(() =>
+        {
+            _pendingInstall = true;
+            _ = PollAsync();
+        });
+
         _pollTimer.Tick += async (_, _) => await PollAsync();
         _saveTimer.Tick += async (_, _) => await SaveAsync();
     }
@@ -398,8 +490,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     foreach (var provider in Providers)
                         provider.Load(settings.For(provider.Id));
 
+                    _checkForUpdates = settings.CheckForUpdates;
+                    Raise(nameof(CheckForUpdates));
+
                     _settingsLoaded = true;
                 }
+            }
+
+            if (_pendingInstall)
+            {
+                _pendingInstall = false;
+                await _client.InstallUpdateAsync();
+            }
+            else if (_pendingCheck)
+            {
+                _pendingCheck = false;
+                await _client.CheckForUpdatesAsync();
             }
 
             var status = (await _client.GetStatusAsync())?.Status;
@@ -429,6 +535,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 ? $"Helper v{status.Version} running as administrator"
                 : $"Helper v{status.Version} running without administrator rights (ASUS needs them)";
 
+            ShowUpdate(status);
+
             foreach (var provider in Providers)
             {
                 var providerStatus = status.Providers.FirstOrDefault(x => string.Equals(x.Id, provider.Id, StringComparison.OrdinalIgnoreCase));
@@ -440,6 +548,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         finally
         {
             _busy = false;
+        }
+    }
+
+    private void ShowUpdate(BridgeStatus status)
+    {
+        var update = status.Update;
+
+        VersionText = $"Version {status.Version}";
+        UpdateAvailable = update.State == UpdateState.Available;
+        UpdateBusy = update.State is UpdateState.Checking or UpdateState.Downloading or UpdateState.Verifying or UpdateState.Installing;
+        UpdateTitle = update.LatestVersion == null ? "" : $"ChromaBridge {update.LatestVersion} is available";
+
+        UpdateText = update.State == UpdateState.Idle ? "" : update.Message;
+        LastCheckedText = update.LastChecked is { } checkedAt ? $"Last checked {checkedAt.ToLocalTime():g}" : "";
+
+        if (update.State == UpdateState.Available && update.LatestVersion != null && _notifiedVersion != update.LatestVersion)
+        {
+            _notifiedVersion = update.LatestVersion;
+            UpdateFound?.Invoke(update.LatestVersion);
         }
     }
 
@@ -468,7 +595,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            var settings = new BridgeSettings();
+            var settings = new BridgeSettings { CheckForUpdates = CheckForUpdates };
 
             foreach (var provider in Providers)
                 settings.Providers[provider.Id] = provider.ToSettings();

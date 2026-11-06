@@ -108,6 +108,9 @@ public sealed class ProviderSettings
 /// </summary>
 public sealed class BridgeSettings
 {
+    /// <summary>Look for a new ChromaBridge version once a day. Never installs by itself.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>Settings per provider ID (lower case).</summary>
     public Dictionary<string, ProviderSettings> Providers { get; set; } = [];
 
@@ -159,7 +162,11 @@ public sealed class BridgeSettings
         return this;
     }
 
-    public BridgeSettings Clone() => new() { Providers = Providers.ToDictionary(x => x.Key, x => x.Value.Clone()) };
+    public BridgeSettings Clone() => new()
+    {
+        CheckForUpdates = CheckForUpdates,
+        Providers = Providers.ToDictionary(x => x.Key, x => x.Value.Clone())
+    };
 
     private static ProviderSettings CreateDefault(string providerId) => providerId switch
     {
