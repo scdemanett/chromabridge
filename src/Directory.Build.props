@@ -9,7 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Product>ChromaBridge</Product>
     <Description>Bridges Razer Chroma lighting to ASUS Aura and Corsair iCUE devices.</Description>
     <Copyright>Copyright (c) ChromaBridge contributors. Based on Chroma Control, copyright (c) 2021 Chroma Control Contributors.</Copyright>
