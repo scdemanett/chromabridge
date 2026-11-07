@@ -1,5 +1,6 @@
 // Licensed under the MIT license. See LICENSE.txt in the project root.
 
+using System.IO;
 using Drawing = System.Drawing;
 
 namespace ChromaBridge.App;
