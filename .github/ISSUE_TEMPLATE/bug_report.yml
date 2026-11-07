@@ -1,0 +1,47 @@
+name: Bug report
+description: Something in ChromaBridge does not work as the readme says it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The helper's log usually says what went wrong, so please attach it.
+  - type: input
+    id: version
+    attributes:
+      label: ChromaBridge version and edition
+      description: From the bottom of the ChromaBridge window, and whether you installed Full or Lite.
+      placeholder: 0.1.9, Full
+    validations:
+      required: true
+  - type: input
+    id: synapse
+    attributes:
+      label: Razer Synapse version
+      placeholder: Synapse 4.0.xx
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Which provider is affected?
+      multiple: true
+      options:
+        - ASUS Aura
+        - Corsair iCUE
+        - OpenRGB
+        - The updater
+        - The tray app or window
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the device names as the ChromaBridge window shows them.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Attach the files from `C:\ProgramData\ChromaBridge\logs` (drag them into this box). `service.log` and the `host-*.log` for the affected provider are the useful ones.

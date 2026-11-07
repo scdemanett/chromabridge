@@ -1,0 +1,32 @@
+name: Build
+
+# Every push and pull request gets the same build the release workflow runs, minus signing
+# and the installers, so a commit that cannot build is caught before it is tagged.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build src\ChromaBridge.slnx -c Release -warnaserror
+
+      - name: Publish
+        shell: pwsh
+        run: tools\publish.ps1

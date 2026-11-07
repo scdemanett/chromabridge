@@ -62,7 +62,8 @@ jobs:
           Invoke-WebRequest "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$env:INNO_SETUP_VERSION.exe" -OutFile $setup
           $signature = Get-AuthenticodeSignature $setup
           if ($signature.Status -ne 'Valid') { throw "The Inno Setup download is not validly signed ($($signature.Status))." }
-          if ($signature.SignerCertificate.Subject -notmatch 'Jordan Russell') { throw "The Inno Setup download is signed by someone else: $($signature.SignerCertificate.Subject)" }
+          # Inno Setup releases are signed by its publisher's company
+          if ($signature.SignerCertificate.Subject -notmatch '^CN=Pyrsys B\.V\.,') { throw "The Inno Setup download is signed by someone else: $($signature.SignerCertificate.Subject)" }
           Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/ALLUSERS' -Wait
 
       - name: Azure login
