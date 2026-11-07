@@ -130,6 +130,9 @@ internal sealed class UpdateManager
 
             try
             {
+                if (check || install)
+                    DeleteOldInstallers();
+
                 // An install always works from a fresh check, so it never uses a stale address
                 if (check || install)
                     Check(stoppingToken);
@@ -148,6 +151,29 @@ internal sealed class UpdateManager
             }
 
             WaitHandle.WaitAny(handles, TimeSpan.FromMinutes(1));
+        }
+    }
+
+    /// <summary>
+    /// Removes installers left from earlier updates. By the time a check runs, the installer
+    /// that put this version in place has long exited, so its file is free to delete.
+    /// </summary>
+    private static void DeleteOldInstallers()
+    {
+        try
+        {
+            if (!Directory.Exists(s_updatesDirectory))
+                return;
+
+            foreach (var file in Directory.GetFiles(s_updatesDirectory, "*-setup.exe"))
+            {
+                File.Delete(file);
+                Log.Info($"[update] Deleted the old installer {Path.GetFileName(file)}");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Error("[update] Could not delete an old installer", ex);
         }
     }
 

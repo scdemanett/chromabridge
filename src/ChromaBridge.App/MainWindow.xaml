@@ -99,7 +99,9 @@
                 <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding StartsAtLogin}" Content="Start at login"
                           Visibility="{Binding Connected, Converter={StaticResource BoolToVisibility}}"
                           ToolTip="Start ChromaBridge when you log in to Windows. Changing this asks for administrator approval." />
-                <TextBlock Text="ChromaBridge" FontSize="24" FontWeight="SemiBold" />
+                <Image x:Name="Lockup" Height="44" HorizontalAlignment="Left" Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality" ToolTip="ChromaBridge"
+                       AutomationProperties.Name="ChromaBridge" />
             </DockPanel>
             <TextBlock Text="{Binding HelperText}" Style="{StaticResource Secondary}" Margin="0,4,0,16" />
 

@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/chromabridge-lockup-white.svg">
-  <img alt="ChromaBridge" src="assets/chromabridge-lockup.svg" width="480">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/chromabridge-lockup-white.png">
+  <img alt="ChromaBridge" src="assets/chromabridge-lockup.png" width="480">
 </picture>
 
 ChromaBridge makes RGB hardware from other brands follow Razer Chroma. Lighting effects

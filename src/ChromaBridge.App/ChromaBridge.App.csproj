@@ -20,6 +20,9 @@
   <ItemGroup>
     <!-- The tray and window icons are read from the same .ico the executable uses -->
     <EmbeddedResource Include="..\ChromaBridge.ico" LogicalName="ChromaBridge.ico" />
+    <!-- The header lockup, one per theme; the window picks the one matching Windows' app theme -->
+    <Resource Include="..\..\assets\chromabridge-lockup.png" Link="Assets\chromabridge-lockup.png" />
+    <Resource Include="..\..\assets\chromabridge-lockup-white.png" Link="Assets\chromabridge-lockup-white.png" />
   </ItemGroup>
 
   <ItemGroup>

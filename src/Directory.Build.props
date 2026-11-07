@@ -17,6 +17,9 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <OutputPath>$(MSBuildThisFileDirectory)..\artifacts\bin\$(Configuration)\</OutputPath>
+    <!-- Self-contained builds (the installer's publish) carry the runtime with them; keeping them
+         apart stops a framework-dependent dev build from picking up that runtime's host files -->
+    <OutputPath Condition="'$(SelfContained)' == 'true'">$(MSBuildThisFileDirectory)..\artifacts\bin\$(Configuration)-self-contained\</OutputPath>
   </PropertyGroup>
 
 </Project>
