@@ -1,9 +1,16 @@
-# Builds the ChromaBridge installer: publish, optionally sign, compile the Inno Setup script.
-# The version comes from src\Directory.Build.props, so that file is the one place to bump it.
+# Builds the ChromaBridge installers: publish, optionally sign, compile the Inno Setup script
+# once per edition. The version comes from src\Directory.Build.props, so that file is the one
+# place to bump it.
 #
-#   tools\build-installer.ps1          unsigned, for testing by hand
-#   tools\build-installer.ps1 -Sign    signed; needs an Azure CLI session (see tools\sign.ps1)
+#   tools\build-installer.ps1                  both editions, unsigned, for testing by hand
+#   tools\build-installer.ps1 -Edition lite    one edition
+#   tools\build-installer.ps1 -Sign            signed; needs an Azure CLI session (see tools\sign.ps1)
+#
+# Full bundles the third-party archives pinned in bundles.json (OpenRGB, Corsair's iCUE SDK);
+# Lite downloads them on first use.
 param(
+    [ValidateSet('full', 'lite', 'both')]
+    [string]$Edition = 'both',
     [switch]$Sign
 )
 
@@ -16,6 +23,12 @@ $version = ($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where
 
 if (-not $version) {
     throw 'No <Version> found in src\Directory.Build.props.'
+}
+
+$editions = if ($Edition -eq 'both') { 'full', 'lite' } else { , $Edition }
+
+if ($editions -contains 'full') {
+    & (Join-Path $PSScriptRoot 'fetch-bundles.ps1')
 }
 
 & (Join-Path $PSScriptRoot 'publish.ps1')
@@ -40,16 +53,18 @@ if (-not $iscc) {
     throw 'Inno Setup 6 (6.6 or later) was not found.'
 }
 
-& $iscc /Q "/DAppVersion=$version" (Join-Path $root 'installer\ChromaBridge.iss')
+foreach ($current in $editions) {
+    & $iscc /Q "/DAppVersion=$version" "/DEdition=$current" (Join-Path $root 'installer\ChromaBridge.iss')
 
-if ($LASTEXITCODE -ne 0) {
-    throw "The Inno Setup compiler failed with exit code $LASTEXITCODE."
+    if ($LASTEXITCODE -ne 0) {
+        throw "The Inno Setup compiler failed with exit code $LASTEXITCODE for the $current edition."
+    }
+
+    $installer = Join-Path $root "artifacts\installer\ChromaBridge-$version-$current-setup.exe"
+
+    if ($Sign) {
+        & (Join-Path $PSScriptRoot 'sign.ps1') -Path $installer
+    }
+
+    "Built $installer ({0:N1} MB){1}" -f ((Get-Item $installer).Length / 1MB), $(if ($Sign) { ', signed' } else { ', unsigned' })
 }
-
-$installer = Join-Path $root "artifacts\installer\ChromaBridge-$version-setup.exe"
-
-if ($Sign) {
-    & (Join-Path $PSScriptRoot 'sign.ps1') -Path $installer
-}
-
-"Built $installer ({0:N1} MB){1}" -f ((Get-Item $installer).Length / 1MB), $(if ($Sign) { ', signed' } else { ', unsigned' })

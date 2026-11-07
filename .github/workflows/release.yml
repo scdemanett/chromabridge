@@ -1,6 +1,7 @@
 name: Release
 
-# Pushing a tag "vX.Y.Z" builds the signed installer and publishes it as a GitHub release.
+# Pushing a tag "vX.Y.Z" builds the signed Full and Lite installers and publishes them as a
+# GitHub release.
 # The tag must match <Version> in src/Directory.Build.props. Installed copies find the
 # release through the updater, which only accepts an installer signed by this workflow's
 # Azure Artifact Signing identity.
@@ -49,10 +50,6 @@ jobs:
           if ($env:TAG -ne "v$version") { throw "Tag $env:TAG does not match version $version in src\Directory.Build.props." }
           "VERSION=$version" >> $env:GITHUB_ENV
 
-      - name: Fetch the iCUE SDK library
-        shell: pwsh
-        run: tools\fetch-icue-sdk.ps1
-
       - name: Install Inno Setup
         shell: pwsh
         run: |
@@ -79,7 +76,7 @@ jobs:
           Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.ArtifactSigning.Client/$env:SIGNING_CLIENT_VERSION" -OutFile $package
           Expand-Archive $package -DestinationPath signing\.artifact-signing
 
-      - name: Build and sign the installer
+      - name: Build and sign the installers
         shell: pwsh
         run: tools\build-installer.ps1 -Sign
 
@@ -89,5 +86,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          $installer = "artifacts\installer\ChromaBridge-$env:VERSION-setup.exe"
-          gh release create $env:TAG $installer --title "ChromaBridge $env:VERSION" --generate-notes
+          $full = "artifacts\installer\ChromaBridge-$env:VERSION-full-setup.exe"
+          $lite = "artifacts\installer\ChromaBridge-$env:VERSION-lite-setup.exe"
+          gh release create $env:TAG "$full#ChromaBridge $env:VERSION Full (OpenRGB and the iCUE SDK included)" "$lite#ChromaBridge $env:VERSION Lite (downloads them on first use)" --title "ChromaBridge $env:VERSION" --generate-notes

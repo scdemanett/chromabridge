@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <Content Include="Data\AppIds.dat" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned third-party downloads; tools\fetch-bundles.ps1 reads the same file -->
+    <EmbeddedResource Include="..\..\bundles.json" LogicalName="ChromaBridge.bundles.json" />
   </ItemGroup>
 
 </Project>

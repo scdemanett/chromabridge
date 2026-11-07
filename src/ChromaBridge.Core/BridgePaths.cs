@@ -46,6 +46,28 @@ public static class BridgePaths
 
     public static string InstallDirectory => AppContext.BaseDirectory;
 
+    /// <summary>
+    /// Written by the installer: "full" (third-party downloads bundled) or "lite" (fetched on
+    /// first use). The updater installs the same edition. Missing means full, which is what
+    /// installers before the split shipped.
+    /// </summary>
+    public static string Edition
+    {
+        get
+        {
+            try
+            {
+                var path = Path.Combine(InstallDirectory, "edition.txt");
+
+                return File.Exists(path) && File.ReadAllText(path).Trim().Equals("lite", StringComparison.OrdinalIgnoreCase) ? "lite" : "full";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return "full";
+            }
+        }
+    }
+
     public static string ServiceExePath => Path.Combine(InstallDirectory, ServiceExeName);
 
     public static string HostExePath => Path.Combine(InstallDirectory, HostExeName);

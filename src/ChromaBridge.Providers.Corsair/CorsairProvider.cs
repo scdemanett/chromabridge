@@ -28,10 +28,14 @@ public sealed class CorsairProvider : ILightingProvider
     public CorsairProvider()
     {
         _onStateChanged = OnSessionStateChanged;
+        IcueSdk.RegisterResolver();
     }
 
     public IReadOnlyList<ILightingDevice> Connect(Action<string> report, CancellationToken cancellationToken)
     {
+        if (!IcueSdk.Ensure(report, cancellationToken))
+            throw new InvalidOperationException("The iCUE SDK library could not be downloaded. ChromaBridge will try again.");
+
         report("Connecting to iCUE...");
 
         try
@@ -45,7 +49,7 @@ public sealed class CorsairProvider : ILightingProvider
         }
         catch (DllNotFoundException ex)
         {
-            throw new InvalidOperationException("The iCUE SDK library (iCUESDK.x64_2019.dll) is missing from the install folder.", ex);
+            throw new InvalidOperationException("The iCUE SDK library (iCUESDK.x64_2019.dll) could not be loaded.", ex);
         }
 
         for (var attempt = 1; ; attempt++)

@@ -221,22 +221,34 @@ internal sealed class UpdateManager
 
             if (root.TryGetProperty("assets", out var assets))
             {
-                // The installer must come from this project's own release downloads
+                // The installer must come from this project's own release downloads, and it
+                // should be this copy's edition; a release with one unnamed installer (before
+                // the Full and Lite split) is accepted too
                 var prefix = $"https://github.com/{BridgePaths.UpdateRepository}/releases/download/";
+                var wanted = $"-{BridgePaths.Edition}-setup.exe";
 
                 foreach (var asset in assets.EnumerateArray())
                 {
                     var assetName = asset.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
                     var assetUrl = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
 
-                    if (assetName.StartsWith("ChromaBridge-", StringComparison.OrdinalIgnoreCase)
-                        && assetName.EndsWith("-setup.exe", StringComparison.OrdinalIgnoreCase)
-                        && assetName.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
-                        && assetUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    if (!assetName.StartsWith("ChromaBridge-", StringComparison.OrdinalIgnoreCase)
+                        || !assetName.EndsWith("-setup.exe", StringComparison.OrdinalIgnoreCase)
+                        || assetName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                        || !assetUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var edition = assetName.EndsWith(wanted, StringComparison.OrdinalIgnoreCase);
+                    var unnamed = !assetName.EndsWith("-full-setup.exe", StringComparison.OrdinalIgnoreCase)
+                        && !assetName.EndsWith("-lite-setup.exe", StringComparison.OrdinalIgnoreCase);
+
+                    if (edition || (unnamed && url == null))
                     {
                         url = assetUrl;
                         name = assetName;
-                        break;
+
+                        if (edition)
+                            break;
                     }
                 }
             }

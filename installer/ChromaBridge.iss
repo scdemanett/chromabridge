@@ -1,10 +1,15 @@
 ; Inno Setup 6 script for ChromaBridge.
-; Build: run tools\build-installer.ps1 (add -Sign for a release).
+; Build: run tools\build-installer.ps1 (add -Sign for a release). It compiles this script once
+; per edition: "full" ships the third-party archives in bundles.json inside the install folder,
+; "lite" leaves them for the helper to download on first use.
 
 #define AppName "ChromaBridge"
-; The version is passed in by tools\build-installer.ps1 (/DAppVersion=x.y.z)
+; The version and edition are passed in by tools\build-installer.ps1
 #ifndef AppVersion
   #define AppVersion "0.0.0"
+#endif
+#ifndef Edition
+  #define Edition "full"
 #endif
 #define TaskName "ChromaBridge Helper"
 
@@ -12,13 +17,13 @@
 AppId={{6F0C1B7E-3C7E-4D0B-9B6C-5E7C2B5E8A41}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=ChromaBridge contributors
+AppPublisher=Steven Demanett
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE.txt
 OutputDir=..\artifacts\installer
-OutputBaseFilename=ChromaBridge-{#AppVersion}-setup
+OutputBaseFilename=ChromaBridge-{#AppVersion}-{#Edition}-setup
 Compression=lzma2
 SolidCompression=yes
 ; The helper's logon task and the Program Files folder both need an administrator
@@ -31,7 +36,18 @@ SetupIconFile=..\src\ChromaBridge.ico
 WizardStyle=modern dynamic
 
 [Files]
-Source: "..\artifacts\publish\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+; Corsair's SDK library is never shipped loose: the helper unpacks it from Corsair's archive
+Source: "..\artifacts\publish\*"; DestDir: "{app}"; Excludes: "iCUESDK.x64_2019.dll"; Flags: recursesubdirs ignoreversion
+#if Edition == "full"
+Source: "..\artifacts\bundled\*"; DestDir: "{app}\bundled"; Flags: ignoreversion
+#endif
+
+[InstallDelete]
+; Releases before 0.1.4 shipped Corsair's library loose in the install folder
+Type: files; Name: "{app}\iCUESDK.x64_2019.dll"
+
+[UninstallDelete]
+Type: files; Name: "{app}\edition.txt"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\ChromaBridge.exe"
@@ -68,5 +84,18 @@ begin
     Exec(Helper, '--stop', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     // The helper waits for its provider hosts to release their devices
     Sleep(6000);
+  end;
+end;
+
+// Record the edition so the updater fetches the same one. On a switch from Full to Lite the
+// bundled folder is no longer wanted.
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    SaveStringToFile(ExpandConstant('{app}\edition.txt'), '{#Edition}', False);
+    #if Edition == "lite"
+    DelTree(ExpandConstant('{app}\bundled'), True, True, True);
+    #endif
   end;
 end;

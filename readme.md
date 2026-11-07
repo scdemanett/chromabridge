@@ -15,7 +15,7 @@ It is an early release. Expect rough edges.
 |---|---|---|
 | ASUS Aura | Motherboard lighting and addressable headers | Armoury Crate |
 | Corsair iCUE | Whatever iCUE lists, for example memory | iCUE with its SDK turned on |
-| OpenRGB | Devices [OpenRGB](https://openrgb.org) supports that have no provider of their own | Nothing; ChromaBridge downloads and runs OpenRGB for you |
+| OpenRGB | Devices [OpenRGB](https://openrgb.org) supports that have no provider of their own | Nothing; ChromaBridge runs OpenRGB for you |
 
 ## Requirements
 
@@ -26,9 +26,16 @@ It is an early release. Expect rough edges.
 
 ## Install
 
-Download the latest `ChromaBridge-x.y.z-setup.exe` from
-[Releases](https://github.com/scdemanett/chromabridge/releases) and run it. ChromaBridge
-starts with Windows and lives in the system tray.
+Each release on [Releases](https://github.com/scdemanett/chromabridge/releases) comes as two
+installers. Both are signed, and both install the same ChromaBridge:
+
+| Installer | What it holds | Pick it when |
+|---|---|---|
+| `ChromaBridge-x.y.z-full-setup.exe` | ChromaBridge plus the OpenRGB release and Corsair's iCUE SDK it uses | You want an install that needs nothing else downloaded, now or if those downloads ever disappear |
+| `ChromaBridge-x.y.z-lite-setup.exe` | ChromaBridge only; it downloads OpenRGB and the iCUE SDK from their publishers on first use | You want the small download |
+
+Run the one you chose. ChromaBridge starts with Windows and lives in the system tray, and
+its updater keeps you on the edition you installed.
 
 After installing:
 
@@ -84,3 +91,14 @@ by the Chroma Control Contributors and has since been rewritten. It is released 
 
 ChromaBridge is not affiliated with or endorsed by Razer, ASUS, Corsair, Creative, NVIDIA
 or the OpenRGB project. All product names are trademarks of their owners.
+
+The Full installer carries two third-party downloads unchanged, exactly as their publishers
+released them; the Lite installer fetches the same files, checked against the same SHA-256
+hashes, which are pinned in [bundles.json](bundles.json):
+
+- [OpenRGB](https://openrgb.org), GPL-2.0. Its source is at
+  [codeberg.org/OpenRGB/OpenRGB](https://codeberg.org/OpenRGB/OpenRGB); the bundled build is
+  the project's own Windows release of the pinned version.
+- The [Corsair iCUE SDK](https://github.com/CorsairOfficial/cue-sdk) client library, under
+  Corsair's [SDK license](https://corsairofficial.github.io/cue-sdk/). ChromaBridge unpacks
+  the one DLL from Corsair's archive and uses it as is.

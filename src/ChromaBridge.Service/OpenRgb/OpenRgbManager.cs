@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -27,9 +26,7 @@ namespace ChromaBridge.Service.OpenRgb;
 /// </summary>
 internal sealed class OpenRgbManager
 {
-    private const string Version = "1.1";
-    private const string DownloadUrl = "https://codeberg.org/OpenRGB/OpenRGB/releases/download/release_1.1/OpenRGB_1.1_Windows_64_8e16de2.zip";
-    private const string DownloadSha256 = "63291726c6fc84eb479ef2ee752e97e1187f6ce9c49fd27eee40ded588a8172a";
+    private static readonly string Version = Bundles.OpenRgb.Version;
     private const string ExeName = "OpenRGB.exe";
     private const int SdkPort = 6742;
 
@@ -191,36 +188,19 @@ internal sealed class OpenRgbManager
 
         // Only an elevated service may write the install folder; unelevated development runs
         // would put the program where any process could replace it
-        var zipPath = Path.Combine(BridgePaths.DataDirectory, "openrgb", $"OpenRGB-{Version}.zip.download");
         var stagingDirectory = InstallDirectory + ".staging";
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(zipPath)!);
+            // The Full installer ships the archive; otherwise it is downloaded and checked
+            var zipPath = BundleStore.Obtain(Bundles.OpenRgb, text => _message = text, stoppingToken);
 
-            _message = $"Downloading OpenRGB {Version}...";
-            Log.Info($"[openrgb] Downloading {DownloadUrl}");
-
-            using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) })
-            using (var response = http.GetAsync(DownloadUrl, HttpCompletionOption.ResponseHeadersRead, stoppingToken).GetAwaiter().GetResult())
+            if (zipPath == null)
             {
-                response.EnsureSuccessStatusCode();
+                if (stoppingToken.IsCancellationRequested)
+                    return false;
 
-                using var file = File.Create(zipPath);
-
-                response.Content.CopyToAsync(file, stoppingToken).GetAwaiter().GetResult();
-            }
-
-            string actualHash;
-
-            using (var file = File.OpenRead(zipPath))
-                actualHash = Convert.ToHexString(SHA256.HashData(file)).ToLowerInvariant();
-
-            if (actualHash != DownloadSha256)
-            {
-                File.Delete(zipPath);
-                Log.Error($"[openrgb] The download's SHA-256 is {actualHash}, expected {DownloadSha256}; it was discarded");
-                Fail("The OpenRGB download did not match the expected file and was discarded.", TimeSpan.FromMinutes(10));
+                Fail("OpenRGB could not be downloaded. ChromaBridge will try again.", TimeSpan.FromMinutes(2));
                 return false;
             }
 
@@ -236,7 +216,6 @@ internal sealed class OpenRgbManager
 
             // Move into place in one step so a half-unpacked folder is never used
             Directory.Move(stagingDirectory, InstallDirectory);
-            File.Delete(zipPath);
 
             Log.Info($"[openrgb] Installed OpenRGB {Version} to {InstallDirectory}");
 
@@ -246,10 +225,10 @@ internal sealed class OpenRgbManager
         {
             return false;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            Log.Error("[openrgb] Downloading or unpacking OpenRGB failed", ex);
-            Fail("OpenRGB could not be downloaded. ChromaBridge will try again.", TimeSpan.FromMinutes(2));
+            Log.Error("[openrgb] Unpacking OpenRGB failed", ex);
+            Fail("OpenRGB could not be unpacked. ChromaBridge will try again.", TimeSpan.FromMinutes(2));
             return false;
         }
     }
