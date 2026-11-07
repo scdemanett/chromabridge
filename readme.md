@@ -9,6 +9,8 @@ motherboard, memory, sound card and other devices.
 
 It is an early release. Expect rough edges.
 
+![The ChromaBridge window: provider cards for ASUS Aura, Corsair iCUE and OpenRGB, each listing its devices with on/off switches, zone mapping and color sliders](assets/chromabridge-window.png)
+
 ## What it drives
 
 | Provider | Devices | Needs |

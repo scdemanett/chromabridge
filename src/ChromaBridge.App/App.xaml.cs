@@ -46,11 +46,11 @@ public partial class App : Application
 
         // A new version is announced once from the tray; installing it is the user's click
         _trayIcon.BalloonTipClicked += (_, _) => ShowWindow();
-        _viewModel.UpdateFound += version => _trayIcon.ShowBalloonTip(
-            10000,
+        _viewModel.UpdateFound += version => TrayBalloon.Show(
+            _trayIcon,
             "ChromaBridge update",
             $"Version {version} is available. Open ChromaBridge to install it.",
-            Forms.ToolTipIcon.Info);
+            10000);
 
         _trayIcon.MouseClick += (_, args) =>
         {
@@ -61,6 +61,10 @@ public partial class App : Application
         // "--tray" starts hidden, for launching at login
         if (!e.Args.Contains("--tray", StringComparer.OrdinalIgnoreCase))
             ShowWindow();
+
+        // "--test-balloon" shows the update notification without an update, for checking its look
+        if (e.Args.Contains("--test-balloon", StringComparer.OrdinalIgnoreCase))
+            TrayBalloon.Show(_trayIcon, "ChromaBridge update", "Version 9.9.9 is available. Open ChromaBridge to install it.", 10000);
 
         _viewModel.Start();
     }
