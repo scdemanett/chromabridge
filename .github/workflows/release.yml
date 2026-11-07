@@ -93,7 +93,7 @@ jobs:
         run: |
           $full = "artifacts\installer\ChromaBridge-$env:VERSION-full-setup.exe"
           $lite = "artifacts\installer\ChromaBridge-$env:VERSION-lite-setup.exe"
-          $notes = "release-notes$env:VERSION.md"
+          $notes = "release-notes\$env:VERSION.md"
           if (-not (Test-Path $notes)) { throw "Write the release notes to $notes before tagging." }
           # Created as a draft and published only once both installers are attached, so the
           # updater never sees a release with one of them missing
