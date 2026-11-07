@@ -341,7 +341,33 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
             row.Update(device);
         }
 
+        // Keep the provider's order (a board first, its headers under it); rows the provider
+        // is not reporting go last
+        var position = 0;
+
+        foreach (var device in status.Devices)
+        {
+            var index = IndexOf(device.Name);
+
+            if (index > position)
+                Devices.Move(index, position);
+
+            if (index >= 0)
+                position++;
+        }
+
         Raise(nameof(HasDevices));
+    }
+
+    private int IndexOf(string name)
+    {
+        for (var i = 0; i < Devices.Count; i++)
+        {
+            if (string.Equals(Devices[i].Name, name, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+
+        return -1;
     }
 
     public void Clear()
