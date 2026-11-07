@@ -131,9 +131,12 @@ public sealed class BridgeSettings
     /// <summary>Fills in missing providers and normalizes keys after loading.</summary>
     public BridgeSettings Normalize()
     {
+        // Only known providers, keys lower case, and only well-formed entries: this is read
+        // by elevated processes from a message the tray app sent or a file anyone could edit
         Providers = Providers
-            .Where(x => x.Value != null)
+            .Where(x => x.Key != null && x.Value != null)
             .GroupBy(x => x.Key.ToLowerInvariant())
+            .Where(x => KnownProviders.All.Any(k => k.Id == x.Key))
             .ToDictionary(x => x.Key, x => x.First().Value);
 
         foreach (var (id, _) in KnownProviders.All)
@@ -141,9 +144,15 @@ public sealed class BridgeSettings
 
         foreach (var settings in Providers.Values)
         {
-            settings.ExcludedDevices ??= [];
-            settings.Mappings ??= [];
+            settings.ExcludedDevices = [.. (settings.ExcludedDevices ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)];
+            settings.Mappings = (settings.Mappings ?? [])
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key) && Enum.IsDefined(x.Value))
+                .GroupBy(x => x.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.First().Value, StringComparer.OrdinalIgnoreCase);
             settings.SkipVendors = [];
+            settings.Gamma = double.IsFinite(settings.Gamma) ? Math.Clamp(settings.Gamma, 0.5, 4) : 1;
+            settings.Saturation = double.IsFinite(settings.Saturation) ? Math.Clamp(settings.Saturation, 0, 2) : 1;
+            settings.Brightness = double.IsFinite(settings.Brightness) ? Math.Clamp(settings.Brightness, 0, 1) : 1;
         }
 
         // OpenRGB can see the same hardware as the native providers; two writers on one

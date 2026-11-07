@@ -62,11 +62,12 @@ internal sealed class OpenRgbManager
     /// <summary>What the manager is doing or why OpenRGB is not running; null when all is well.</summary>
     public string? Message => _message;
 
+    private Thread? _thread;
+
     public void Start(CancellationToken stoppingToken)
     {
-        var thread = new Thread(() => Run(stoppingToken)) { IsBackground = true, Name = "OpenRGB Manager" };
-
-        thread.Start();
+        _thread = new Thread(() => Run(stoppingToken)) { IsBackground = true, Name = "OpenRGB Manager" };
+        _thread.Start();
     }
 
     /// <summary>
@@ -86,8 +87,17 @@ internal sealed class OpenRgbManager
         _wake.Set();
     }
 
-    /// <summary>Stops the OpenRGB this manager started. Called when the service shuts down.</summary>
-    public void Stop() => StopProcess();
+    /// <summary>
+    /// Stops the OpenRGB this manager started. Called when the service shuts down, after its
+    /// token is cancelled: the manager thread is given time to finish what it is doing (it may
+    /// be unpacking or starting OpenRGB), so no OpenRGB is started after this returns.
+    /// </summary>
+    public void Stop()
+    {
+        _wake.Set();
+        _thread?.Join(TimeSpan.FromSeconds(20));
+        StopProcess();
+    }
 
     private void Run(CancellationToken stoppingToken)
     {
@@ -176,8 +186,9 @@ internal sealed class OpenRgbManager
         {
             _message = "Starting OpenRGB...";
 
-            // "--server" alone runs OpenRGB with no window; the SDK listens on 127.0.0.1 only
-            _process = UnelevatedLauncher.Start(exePath, $"--server --config \"{ConfigDirectory}\"", InstallDirectory);
+            // "--server" alone runs OpenRGB with no window. Its SDK has no authentication, so
+            // it is bound to this PC only; OpenRGB's own default is every network interface.
+            _process = UnelevatedLauncher.Start(exePath, $"--server --server-host 127.0.0.1 --config \"{ConfigDirectory}\"", InstallDirectory);
             _runningWith = configuration;
 
             Log.Info($"[openrgb] Started OpenRGB {Version} unelevated (PID {_process.Id})");
@@ -372,8 +383,10 @@ internal sealed class OpenRgbManager
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"ChromaBridge.Service.OpenRgb.Detectors-{Version}.txt");
 
+        // Without the list no detector would be turned off and OpenRGB would fight the native
+        // providers for their devices, so a bump of OpenRGB without its list must not run
         if (stream == null)
-            yield break;
+            throw new InvalidOperationException($"The detector list for OpenRGB {Version} is not embedded: add OpenRgb\\Detectors-{Version}.txt to the Service project.");
 
         using var reader = new StreamReader(stream);
 

@@ -3,6 +3,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 namespace ChromaBridge.Service.OpenRgb;
 
@@ -17,6 +18,7 @@ internal static class UnelevatedLauncher
 {
     private const uint ProcessQueryLimitedInformation = 0x1000;
     private const uint TokenDuplicate = 0x0002;
+    private const uint TokenQuery = 0x0008;
     private const uint TokenAllAccess = 0xF01FF;
     private const int SecurityImpersonation = 2;
     private const int TokenPrimary = 1;
@@ -70,6 +72,47 @@ internal static class UnelevatedLauncher
     /// <see cref="Win32Exception"/> or <see cref="InvalidOperationException"/> when it could
     /// not be started unelevated. It never falls back to starting it elevated.
     /// </summary>
+    /// <summary>
+    /// The account that owns the desktop shell (Explorer): the logged-in user, whoever is
+    /// running this process. Null when no shell is running.
+    /// </summary>
+    public static SecurityIdentifier? ShellUser()
+    {
+        var shellWindow = GetShellWindow();
+
+        if (shellWindow == IntPtr.Zero)
+            return null;
+
+        GetWindowThreadProcessId(shellWindow, out var shellProcessId);
+
+        var shellProcess = IntPtr.Zero;
+        var shellToken = IntPtr.Zero;
+
+        try
+        {
+            shellProcess = OpenProcess(ProcessQueryLimitedInformation, false, shellProcessId);
+
+            if (shellProcess == IntPtr.Zero || !OpenProcessToken(shellProcess, TokenQuery, out shellToken))
+                return null;
+
+            using var identity = new WindowsIdentity(shellToken);
+
+            return identity.User;
+        }
+        catch (Exception ex) when (ex is Win32Exception or System.Security.SecurityException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (shellToken != IntPtr.Zero)
+                CloseHandle(shellToken);
+
+            if (shellProcess != IntPtr.Zero)
+                CloseHandle(shellProcess);
+        }
+    }
+
     public static Process Start(string exePath, string arguments, string workingDirectory)
     {
         // Nothing to drop when the service itself is not elevated (development runs)

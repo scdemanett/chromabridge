@@ -324,8 +324,23 @@ internal sealed class UpdateManager
                     throw new InvalidDataException("The installer is implausibly large.");
 
                 using var file = File.Create(path);
+                using var body = response.Content.ReadAsStream(stoppingToken);
 
-                response.Content.CopyToAsync(file, stoppingToken).GetAwaiter().GetResult();
+                // The length header can be absent or wrong, so the bytes are counted as they arrive
+                var buffer = new byte[81920];
+                long total = 0;
+                int read;
+
+                while ((read = body.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    total += read;
+
+                    if (total > MaxInstallerBytes)
+                        throw new InvalidDataException("The installer is implausibly large.");
+
+                    file.Write(buffer, 0, read);
+                    stoppingToken.ThrowIfCancellationRequested();
+                }
             }
 
             SetState(UpdateState.Verifying, "Checking the installer's signature...", keepVersion: true);

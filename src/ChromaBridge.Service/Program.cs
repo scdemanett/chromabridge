@@ -45,8 +45,11 @@ internal static class Program
 
         if (args.Contains("--register-startup", StringComparer.OrdinalIgnoreCase))
         {
+            // The folder is checked before anything (the log included) is written into it
+            if (!DataDirectory.Secure())
+                return 1;
+
             Log.Initialize("setup");
-            DataDirectory.Secure();
 
             return StartupTask.Register(ReadOption(args, "--user")) ? 0 : 1;
         }
@@ -63,7 +66,11 @@ internal static class Program
         if (!first)
             return 1;
 
-        DataDirectory.Secure();
+        // The folder would hold settings this elevated process trusts; it is checked before
+        // anything, the log included, is written into it
+        if (!DataDirectory.Secure())
+            return 1;
+
         Log.Initialize("service");
         Log.Info($"ChromaBridge service v{ProcessInfo.Version} starting (elevated: {ProcessInfo.IsElevated})");
 
@@ -209,7 +216,6 @@ internal static class Program
                     DisplayName = providerStatus.DisplayName,
                     State = providerStatus.State,
                     Message = message,
-                    Elevated = providerStatus.Elevated,
                     Devices = providerStatus.Devices
                 };
             }

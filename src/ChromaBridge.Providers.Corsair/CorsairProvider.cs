@@ -23,8 +23,6 @@ public sealed class CorsairProvider : ILightingProvider
     private volatile int _state = Native.StateClosed;
     private bool _connectCalled;
 
-    public string Id => KnownProviders.Corsair;
-
     public CorsairProvider()
     {
         _onStateChanged = OnSessionStateChanged;

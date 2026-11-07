@@ -30,6 +30,14 @@ internal static class AuthenticodeVerifier
 
     private const string CodeSigningOid = "1.3.6.1.5.5.7.3.3";
 
+    /// <summary>
+    /// The root that issues Azure Artifact Signing certificates: "Microsoft Identity
+    /// Verification Root Certificate Authority 2020". Pinning it means a root certificate
+    /// someone adds to this PC cannot vouch for a certificate that merely copies the identity
+    /// code above.
+    /// </summary>
+    private const string IssuingRootThumbprint = "F40042E2E5F7E8EF8189FED15519AECE42C3BFA2";
+
     private static readonly Guid s_genericVerifyV2 = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
 
     private const uint UiNone = 2;
@@ -107,9 +115,29 @@ internal static class AuthenticodeVerifier
 
             if (!usages.Contains(PublisherIdentityOid))
                 return $"The file is signed, but not by the ChromaBridge publisher (signed by \"{signer.GetNameInfo(X509NameType.SimpleName, false)}\").";
+
+            if (!ChainsToIssuingRoot(signer))
+                return "The signing certificate does not chain to the Azure Artifact Signing root.";
         }
 
         return null;
+    }
+
+    private static bool ChainsToIssuingRoot(X509Certificate2 signer)
+    {
+        using var chain = new X509Chain();
+
+        // Trust was already decided by WinVerifyTrust (with the timestamp); this only asks
+        // which root the chain ends at, so an expired leaf must not fail the build
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreNotTimeValid | X509VerificationFlags.IgnoreCtlNotTimeValid;
+
+        if (!chain.Build(signer) || chain.ChainElements.Count == 0)
+            return false;
+
+        var root = chain.ChainElements[^1].Certificate;
+
+        return string.Equals(root.Thumbprint, IssuingRootThumbprint, StringComparison.OrdinalIgnoreCase);
     }
 
     private static int VerifyTrust(string path)

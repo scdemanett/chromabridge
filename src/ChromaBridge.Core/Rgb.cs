@@ -7,7 +7,6 @@ namespace ChromaBridge;
 /// </summary>
 public readonly record struct Rgb(byte R, byte G, byte B)
 {
-    public static readonly Rgb Black = new(0, 0, 0);
 
     /// <summary>
     /// Reads a Windows COLORREF value (0x00BBGGRR), the format Razer and ASUS both use.

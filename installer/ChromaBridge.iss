@@ -45,6 +45,8 @@ Source: "..\artifacts\bundled\*"; DestDir: "{app}\bundled"; Flags: ignoreversion
 [InstallDelete]
 ; Releases before 0.1.4 shipped Corsair's library loose in the install folder
 Type: files; Name: "{app}\iCUESDK.x64_2019.dll"
+; Bundled archives of an earlier version are not wanted next to the new ones
+Type: filesandordirs; Name: "{app}\bundled"
 
 [UninstallDelete]
 Type: files; Name: "{app}\edition.txt"
@@ -63,8 +65,9 @@ Filename: "{app}\ChromaBridge.exe"; Description: "Open {#AppName}"; Flags: posti
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM ChromaBridge.exe /F"; Flags: runhidden; RunOnceId: "StopTray"
 Filename: "{app}\ChromaBridge.Service.exe"; Parameters: "--stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopHelper"
+; Removes the logon task and the tray app's Run entry for the logged-in user (the hive the add
+; above wrote to, which is not the uninstaller's own when another account elevated it)
 Filename: "{app}\ChromaBridge.Service.exe"; Parameters: "--unregister-startup"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveTask"
-Filename: "{sys}\reg.exe"; Parameters: "delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v {#AppName} /f"; Flags: runhidden; RunOnceId: "RemoveRunKey"
 
 [Code]
 // Before files are replaced on an upgrade: close the tray app and ask the helper to stop,
@@ -84,6 +87,29 @@ begin
     Exec(Helper, '--stop', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     // The helper waits for its provider hosts to release their devices
     Sleep(6000);
+  end;
+end;
+
+// After the program files are gone: the downloaded and unpacked third-party pieces can always
+// be fetched again, so they go; settings and logs are the user's, so they are asked about.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Data: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    Data := ExpandConstant('{commonappdata}\{#AppName}');
+    DelTree(Data + '\openrgb', True, True, True);
+    DelTree(Data + '\icue', True, True, True);
+    DelTree(Data + '\downloads', True, True, True);
+    DelTree(Data + '\updates', True, True, True);
+    DeleteFile(Data + '\logon-task.xml');
+
+    if MsgBox('Also remove your ChromaBridge settings and logs?', mbConfirmation, MB_YESNO) = IDYES then
+    begin
+      DelTree(Data, True, True, True);
+      DelTree(ExpandConstant('{localappdata}\{#AppName}'), True, True, True);
+    end;
   end;
 end;
 

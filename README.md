@@ -23,8 +23,10 @@ It is an early release. Expect rough edges.
 
 - Windows 10 or 11, 64-bit
 - Razer Synapse with Chroma Connect turned on
-- Administrator rights. ASUS only reports its devices to an administrator, so
-  ChromaBridge's background helper runs elevated.
+- Administrator rights, once: the installer asks for them and registers a logon task that
+  starts ChromaBridge's background helper elevated from then on, with no prompts. ASUS only
+  reports its devices to an administrator. The helper is a normal program started by that
+  task, not a Windows service, so it does not appear in the Services list.
 
 ## Install
 
@@ -69,8 +71,9 @@ ChromaBridge verifies that it is signed by the ChromaBridge publisher.
 ## Good to know
 
 - OpenRGB is started without administrator rights and without its low-level bus driver,
-  and it is set to leave ASUS, Corsair and Razer devices alone so it does not compete with
-  their own software.
+  and it is set to leave Razer devices alone, and ASUS or Corsair devices while their own
+  provider is on, so it does not compete with their software. Switching an OpenRGB device
+  off turns its OpenRGB detector off as well. Its SDK port is open to this PC only.
 - Some lights can only be one color. The GeForce RTX 5090 Founders Edition, for example,
   can only be switched on or off.
 
@@ -79,11 +82,16 @@ ChromaBridge verifies that it is signed by the ChromaBridge publisher.
 Needs the .NET 10 SDK on Windows.
 
 ```
-tools\fetch-icue-sdk.ps1
 dotnet build src\ChromaBridge.slnx
 ```
 
-`tools\build-installer.ps1` builds the installer and needs Inno Setup 6.6 or later.
+A development build fetches Corsair's SDK on first use, like an installed copy does;
+`tools\fetch-icue-sdk.ps1` places a copy beside the build instead, which is optional.
+
+`tools\build-installer.ps1` publishes and builds both installers into `artifacts\installer`
+(`-Edition full` or `lite` for one) and needs Inno Setup 6.6 or later. Releases are cut by
+tagging `vX.Y.Z` with a matching `<Version>` in `src\Directory.Build.props` and release notes
+in `releases\X.Y.Z.md`.
 
 ## Credits and license
 

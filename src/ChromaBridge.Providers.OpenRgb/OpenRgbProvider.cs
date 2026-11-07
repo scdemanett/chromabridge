@@ -23,8 +23,6 @@ public sealed class OpenRgbProvider : ILightingProvider
     private OpenRgbClient? _client;
     private IReadOnlyList<string> _skipVendors = [];
 
-    public string Id => KnownProviders.OpenRgb;
-
     public void Configure(ProviderSettings settings) => _skipVendors = [.. settings.SkipVendors];
 
     public IReadOnlyList<ILightingDevice> Connect(Action<string> report, CancellationToken cancellationToken)

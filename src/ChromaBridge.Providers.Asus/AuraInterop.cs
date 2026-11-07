@@ -85,6 +85,7 @@ internal interface IAuraSyncDevice
     [DispId(9)]
     string Name { [return: MarshalAs(UnmanagedType.BStr)] get; }
 
+    /// <summary>Vtable slots only; not used.</summary>
     [DispId(13)]
     uint Width { get; }
 

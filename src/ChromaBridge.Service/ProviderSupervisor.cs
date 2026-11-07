@@ -24,6 +24,7 @@ internal sealed class ProviderSupervisor
     private TimeSpan _restartDelay = s_initialRestartDelay;
     private Timer? _restartTimer;
     private bool _stopping;
+    private bool _restartRequested;
 
     public ProviderSupervisor(string id, ProviderSettings settings)
     {
@@ -73,14 +74,34 @@ internal sealed class ProviderSupervisor
             }
             else if (previous.ExclusionsDiffer(_settings))
             {
-                Log.Info($"[{_id}] Excluded devices changed; restarting the host");
-                StopHost();
-                StartHost();
+                // Stopping waits for the host to release its devices, which can take seconds;
+                // the caller is answering the tray app, so the restart happens off its thread
+                if (!_restartRequested)
+                {
+                    _restartRequested = true;
+                    _status = CreateStatus(ProviderState.Restarting, "Applying the device change...");
+                    ThreadPool.QueueUserWorkItem(_ => RestartForSettings());
+                }
             }
             else
             {
                 SendSettings();
             }
+        }
+    }
+
+    private void RestartForSettings()
+    {
+        lock (_lock)
+        {
+            _restartRequested = false;
+
+            if (_stopping || !_settings.Enabled)
+                return;
+
+            Log.Info($"[{_id}] Excluded devices changed; restarting the host");
+            StopHost();
+            StartHost();
         }
     }
 
@@ -171,6 +192,10 @@ internal sealed class ProviderSupervisor
                 {
                     Log.Warn($"[{_id}] Host did not stop in 10 s; ending it");
                     process.Kill();
+
+                    // Kill() returns before the process is gone; the next host must not start
+                    // while this one still holds the vendor SDK
+                    process.WaitForExit(2000);
                 }
             }
         }
@@ -221,6 +246,18 @@ internal sealed class ProviderSupervisor
 
     private void OnHostExited(Process process)
     {
+        // Exited can fire before the last output line has been delivered; waiting without a
+        // timeout drains the output, so a final status (the host's reason for stopping) is
+        // seen before it is judged below
+        try
+        {
+            process.WaitForExit();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or SystemException)
+        {
+            Log.Error($"[{_id}] Could not drain the host's output", ex);
+        }
+
         lock (_lock)
         {
             // Stopped on purpose: StopHost already cleared the field

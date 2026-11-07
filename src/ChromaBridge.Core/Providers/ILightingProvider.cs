@@ -9,7 +9,6 @@ namespace ChromaBridge.Providers;
 public interface ILightingProvider : IDisposable
 {
     /// <summary>One of <see cref="KnownProviders"/>.</summary>
-    string Id { get; }
 
     /// <summary>
     /// Gives the provider its settings before <see cref="Connect"/>. Most providers need none.

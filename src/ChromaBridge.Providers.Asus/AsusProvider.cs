@@ -25,8 +25,6 @@ public sealed class AsusProvider : ILightingProvider
     private IAuraSdk? _sdk;
     private bool _hasControl;
 
-    public string Id => KnownProviders.Asus;
-
     public IReadOnlyList<ILightingDevice> Connect(Action<string> report, CancellationToken cancellationToken)
     {
         if (!ProcessInfo.IsElevated)

@@ -1,5 +1,5 @@
 {
-  "_comment": "Third-party downloads ChromaBridge fetches or bundles. The helper reads this file as an embedded resource; tools\\fetch-bundles.ps1 reads it to build the Full installer. Bump a version here and nowhere else.",
+  "_comment": "Third-party downloads ChromaBridge fetches or bundles. The helper reads this file as an embedded resource; tools\\fetch-bundles.ps1 reads it to build the Full installer. Bump a version here; for OpenRGB also add OpenRgb/Detectors-<version>.txt to the Service project, or the helper refuses to start it.",
   "openrgb": {
     "version": "1.1",
     "fileName": "OpenRGB_1.1_Windows_64_8e16de2.zip",

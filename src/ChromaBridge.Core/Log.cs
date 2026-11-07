@@ -31,7 +31,6 @@ public static class Log
         }
     }
 
-    public static void Debug(string message) => Write("DBUG", message, null);
 
     public static void Info(string message) => Write("INFO", message, null);
 

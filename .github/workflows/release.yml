@@ -20,6 +20,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Build, sign and publish
@@ -58,6 +62,7 @@ jobs:
           Invoke-WebRequest "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$env:INNO_SETUP_VERSION.exe" -OutFile $setup
           $signature = Get-AuthenticodeSignature $setup
           if ($signature.Status -ne 'Valid') { throw "The Inno Setup download is not validly signed ($($signature.Status))." }
+          if ($signature.SignerCertificate.Subject -notmatch 'Jordan Russell') { throw "The Inno Setup download is signed by someone else: $($signature.SignerCertificate.Subject)" }
           Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/ALLUSERS' -Wait
 
       - name: Azure login
@@ -88,4 +93,10 @@ jobs:
         run: |
           $full = "artifacts\installer\ChromaBridge-$env:VERSION-full-setup.exe"
           $lite = "artifacts\installer\ChromaBridge-$env:VERSION-lite-setup.exe"
-          gh release create $env:TAG "$full#ChromaBridge $env:VERSION Full (OpenRGB and the iCUE SDK included)" "$lite#ChromaBridge $env:VERSION Lite (downloads them on first use)" --title "ChromaBridge $env:VERSION" --generate-notes
+          $notes = "release-notes$env:VERSION.md"
+          if (-not (Test-Path $notes)) { throw "Write the release notes to $notes before tagging." }
+          # Created as a draft and published only once both installers are attached, so the
+          # updater never sees a release with one of them missing
+          gh release create $env:TAG "$full#ChromaBridge $env:VERSION Full (OpenRGB and the iCUE SDK included)" "$lite#ChromaBridge $env:VERSION Lite (downloads them on first use)" --title "ChromaBridge $env:VERSION" --notes-file $notes --verify-tag --draft
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          gh release edit $env:TAG --draft=false

@@ -69,8 +69,6 @@ public sealed class ProviderStatus
     /// </summary>
     public bool OnlyBlack { get; set; }
 
-    public bool Elevated { get; set; }
-
     public List<DeviceStatus> Devices { get; set; } = [];
 }
 

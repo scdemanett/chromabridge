@@ -116,8 +116,11 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            // Not a lost device, but worth a retry (a vendor service not up yet, a download
+            // that failed): say why before leaving, so the restart message has a reason
             Log.Error("The host failed", ex);
             Shutdown(chroma, provider);
+            Report(ProviderState.Restarting, ex.Message);
             return ExitDeviceLost;
         }
 
@@ -296,8 +299,7 @@ internal static class Program
                 Message = s_message,
                 ChromaConnected = s_chromaLive,
                 FramesPerSecond = Math.Round((frames - s_lastFrames) / seconds, 1),
-                OnlyBlack = s_chromaLive && frames > s_lastFrames && now - Volatile.Read(ref s_lastColorStamp) >= OnlyBlackAfterMs,
-                Elevated = ProcessInfo.IsElevated
+                OnlyBlack = s_chromaLive && frames > s_lastFrames && now - Volatile.Read(ref s_lastColorStamp) >= OnlyBlackAfterMs
             };
 
             s_lastFrames = frames;
@@ -316,7 +318,9 @@ internal static class Program
         }
     }
 
-    private static void Fault(string message)
+    private static void Fault(string message) => Report(ProviderState.Faulted, message);
+
+    private static void Report(ProviderState state, string message)
     {
         WriteMessage(new BridgeMessage
         {
@@ -325,9 +329,8 @@ internal static class Program
             {
                 Id = s_providerId,
                 DisplayName = KnownProviders.DisplayName(s_providerId),
-                State = ProviderState.Faulted,
-                Message = message,
-                Elevated = ProcessInfo.IsElevated
+                State = state,
+                Message = message
             }
         });
     }

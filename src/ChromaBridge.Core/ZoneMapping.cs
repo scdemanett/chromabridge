@@ -87,16 +87,6 @@ public static class ZoneMapper
         }
     }
 
-    /// <summary>The array form of <see cref="Fill"/>, for callers that cannot use spans.</summary>
-    public static Rgb[] Map(Rgb[] colors, int lightCount, ZoneMapping mapping)
-    {
-        var lights = new Rgb[lightCount];
-
-        Fill(lights, colors, mapping);
-
-        return lights;
-    }
-
     private static Rgb Blend(Rgb from, Rgb to, double amount) => new(
         (byte)Math.Round(from.R + ((to.R - from.R) * amount)),
         (byte)Math.Round(from.G + ((to.G - from.G) * amount)),

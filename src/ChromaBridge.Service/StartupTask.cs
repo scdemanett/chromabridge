@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Security;
 using System.Security.Principal;
 using System.Text;
+using ChromaBridge.Service.OpenRgb;
 
 namespace ChromaBridge.Service;
 
@@ -19,16 +20,27 @@ internal static class StartupTask
     /// <summary>
     /// Creates or replaces the task. Must be called from an elevated process.
     /// </summary>
-    /// <param name="userSid">The user the task runs for; the current user when null.</param>
+    /// <param name="userSid">
+    /// The user the task runs for. When null, the user who owns the desktop (the one who is
+    /// logged in), not the account that elevated: with over-the-shoulder elevation those
+    /// differ, and the task must start for the person using the PC.
+    /// </param>
     public static bool Register(string? userSid)
     {
         SecurityIdentifier sid;
 
         try
         {
-            using var identity = WindowsIdentity.GetCurrent();
+            if (!string.IsNullOrWhiteSpace(userSid))
+            {
+                sid = new SecurityIdentifier(userSid);
+            }
+            else
+            {
+                using var identity = WindowsIdentity.GetCurrent();
 
-            sid = string.IsNullOrWhiteSpace(userSid) ? identity.User! : new SecurityIdentifier(userSid);
+                sid = UnelevatedLauncher.ShellUser() ?? identity.User!;
+            }
         }
         catch (ArgumentException)
         {
@@ -36,7 +48,9 @@ internal static class StartupTask
             return false;
         }
 
-        var xmlPath = Path.Combine(Path.GetTempPath(), $"chromabridge-task-{Guid.NewGuid():N}.xml");
+        // The definition is read back by Task Scheduler, which runs it with the highest
+        // privileges at every logon, so it is written where only administrators can write
+        var xmlPath = Path.Combine(BridgePaths.DataDirectory, "logon-task.xml");
 
         try
         {
@@ -65,6 +79,8 @@ internal static class StartupTask
 
     public static bool Unregister()
     {
+        RemoveTrayRunEntry();
+
         if (!IsRegistered())
             return true;
 
@@ -73,6 +89,45 @@ internal static class StartupTask
         Log.Info(exitCode == 0 ? "Removed the logon task" : $"Removing the logon task failed (schtasks exit code {exitCode})");
 
         return exitCode == 0;
+    }
+
+    /// <summary>
+    /// Removes the tray app's Run entry from the logged-in user's hive and from this
+    /// process's own. The installer writes it as the logged-in user; at uninstall this runs
+    /// elevated, possibly as a different account, so HKCU alone could miss it.
+    /// </summary>
+    private static void RemoveTrayRunEntry()
+    {
+        const string runKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+
+        var sids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (UnelevatedLauncher.ShellUser() is { } shellUser)
+            sids.Add(shellUser.Value);
+
+        using (var identity = WindowsIdentity.GetCurrent())
+        {
+            if (identity.User != null)
+                sids.Add(identity.User.Value);
+        }
+
+        foreach (var sid in sids)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.Users.OpenSubKey(sid + "\\" + runKey, writable: true);
+
+                if (key?.GetValue(BridgePaths.ProductName) != null)
+                {
+                    key.DeleteValue(BridgePaths.ProductName, throwOnMissingValue: false);
+                    Log.Info($"Removed the tray app's Run entry for {sid}");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                Log.Error($"Could not remove the tray app's Run entry for {sid}", ex);
+            }
+        }
     }
 
     public static bool IsRegistered() => RunSchtasks("/Query", "/TN", TaskName) == 0;
