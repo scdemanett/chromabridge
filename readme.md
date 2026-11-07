@@ -9,7 +9,7 @@ motherboard, memory, sound card and other devices.
 
 It is an early release. Expect rough edges.
 
-![The ChromaBridge window: provider cards for ASUS Aura, Corsair iCUE and OpenRGB, each listing its devices with on/off switches, zone mapping and color sliders](assets/chromabridge-window-0.1.6.png)
+![The ChromaBridge window: provider cards for ASUS Aura, Corsair iCUE and OpenRGB, each listing its devices with on/off switches, zone mapping and color sliders](assets/chromabridge-window-0.1.8.png)
 
 ## What it drives
 
