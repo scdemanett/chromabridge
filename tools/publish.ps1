@@ -9,10 +9,6 @@ $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $output = Join-Path $root 'artifacts\publish'
 
-if (-not (Test-Path (Join-Path $root 'src\ChromaBridge.Providers.Corsair\native\iCUESDK.x64_2019.dll'))) {
-    throw 'The iCUE SDK library is missing. Run tools\fetch-icue-sdk.ps1 first.'
-}
-
 if (Test-Path $output) {
     Remove-Item $output -Recurse -Force
 }
