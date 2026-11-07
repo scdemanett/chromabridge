@@ -54,6 +54,7 @@ public sealed class DeviceViewModel(string name, Action changed) : ObservableObj
     private ZoneMapping _mapping = ZoneMapping.Repeat;
     private int _lights;
     private string _rate = "";
+    private bool _reported = true;
 
     public string Name { get; } = name;
 
@@ -89,7 +90,22 @@ public sealed class DeviceViewModel(string name, Action changed) : ObservableObj
         }
     }
 
-    public string LightsText => Lights == 1 ? "1 light" : $"{Lights} lights";
+    public string LightsText => !_reported && Lights == 0 ? "" : Lights == 1 ? "1 light" : $"{Lights} lights";
+
+    /// <summary>
+    /// False for a device the provider is not reporting right now. A switched-off OpenRGB
+    /// device is like that: its detector is off, so OpenRGB never lists it. The row stays so
+    /// it can be switched back on.
+    /// </summary>
+    public bool Reported
+    {
+        get => _reported;
+        private set
+        {
+            if (Set(ref _reported, value))
+                Raise(nameof(LightsText));
+        }
+    }
 
     public string Rate
     {
@@ -108,10 +124,18 @@ public sealed class DeviceViewModel(string name, Action changed) : ObservableObj
 
     public void Update(DeviceStatus status)
     {
+        Reported = true;
         Lights = status.Lights;
         Rate = status.Excluded
             ? "Left alone"
             : $"{status.UpdatesPerSecond:F0} updates/s · {status.ApplyMilliseconds:F1} ms";
+    }
+
+    /// <summary>The provider did not list this device this time.</summary>
+    public void MarkUnreported()
+    {
+        Reported = false;
+        Rate = "Left alone";
     }
 }
 
@@ -215,6 +239,20 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
         foreach (var device in Devices)
             device.Load(!settings.IsExcluded(device.Name), settings.MappingFor(device.Name));
 
+        // A switched-off device may not be reported at all (an OpenRGB device whose detector is
+        // off), so its row comes from the settings and stays until it is switched on again
+        foreach (var name in _excluded)
+        {
+            if (name.Trim().Length == 0 || Devices.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var row = new DeviceViewModel(name, OnDeviceChanged);
+            row.Load(false, settings.MappingFor(name));
+            row.MarkUnreported();
+            Devices.Add(row);
+        }
+
+        Raise(nameof(HasDevices));
         _loading = false;
     }
 
@@ -274,10 +312,16 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
             ? "Razer has sent only black for a while. If these lights should be lit, open Chroma Studio and add this entry's tile to your effect layer."
             : "";
 
-        // Update rows in place so checkboxes keep their state between refreshes
+        // Update rows in place so checkboxes keep their state between refreshes. A row for a
+        // switched-off device stays even when the provider does not report it.
         for (var i = Devices.Count - 1; i >= 0; i--)
         {
-            if (!status.Devices.Any(x => string.Equals(x.Name, Devices[i].Name, StringComparison.OrdinalIgnoreCase)))
+            if (status.Devices.Any(x => string.Equals(x.Name, Devices[i].Name, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            if (_excluded.Contains(Devices[i].Name, StringComparer.OrdinalIgnoreCase))
+                Devices[i].MarkUnreported();
+            else
                 Devices.RemoveAt(i);
         }
 
@@ -337,6 +381,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _settingsLoaded;
     private bool _connected;
     private bool _startsAtLogin;
+    private readonly UserPreferences _preferences = UserPreferences.Load();
     private bool _checkForUpdates = true;
     private bool _updateAvailable;
     private bool _updateBusy;
@@ -356,6 +401,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ICommand CheckNowCommand { get; }
 
     public ICommand InstallUpdateCommand { get; }
+
+    public ICommand ExitCommand { get; }
+
+    /// <summary>Raised when the user asks to exit the tray app from the window.</summary>
+    public event Action? ExitRequested;
+
+    /// <summary>Raised after the tray icon preference changes.</summary>
+    public event Action<bool>? ShowTrayIconChanged;
+
+    /// <summary>
+    /// Whether the tray icon is shown. Off means ChromaBridge runs with nothing visible; the
+    /// window comes back by starting ChromaBridge again, and the icon returns while an update
+    /// is waiting so the notification has somewhere to appear.
+    /// </summary>
+    public bool ShowTrayIcon
+    {
+        get => _preferences.ShowTrayIcon;
+        set
+        {
+            if (_preferences.ShowTrayIcon == value)
+                return;
+
+            _preferences.ShowTrayIcon = value;
+            _preferences.Save();
+            Raise();
+            Raise(nameof(TrayIconHidden));
+            ShowTrayIconChanged?.Invoke(value);
+        }
+    }
+
+    public bool TrayIconHidden => !_preferences.ShowTrayIcon;
 
     /// <summary>Raised once per new version, with the version, so the tray icon can announce it.</summary>
     public event Action<string>? UpdateFound;
@@ -466,6 +542,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Providers.Add(new ProviderViewModel(id, displayName, OnSettingsEdited));
 
         StartHelperCommand = new RelayCommand(StartHelper);
+        ExitCommand = new RelayCommand(() => ExitRequested?.Invoke());
 
         // Sent on the next poll: the connection carries one request at a time
         CheckNowCommand = new RelayCommand(() =>

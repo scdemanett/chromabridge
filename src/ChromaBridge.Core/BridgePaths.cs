@@ -25,6 +25,9 @@ public static class BridgePaths
 
     public const string AppMutexName = "ChromaBridge.App";
 
+    /// <summary>Signaled by a second tray app instance to make the running one show its window.</summary>
+    public const string AppShowEventName = "ChromaBridge.App.Show";
+
     public const string ServiceExeName = "ChromaBridge.Service.exe";
 
     public const string HostExeName = "ChromaBridge.Host.exe";

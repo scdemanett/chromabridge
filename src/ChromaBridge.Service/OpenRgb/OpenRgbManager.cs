@@ -46,7 +46,8 @@ internal sealed class OpenRgbManager
 
     private bool _wanted;
     private string[] _skipVendors = [];
-    private string[] _runningWithSkipVendors = [];
+    private string[] _excludedDevices = [];
+    private string[] _runningWith = [];
     private Process? _process;
     private TimeSpan _restartDelay = s_initialRestartDelay;
     private DateTime _notBefore = DateTime.MinValue;
@@ -68,13 +69,18 @@ internal sealed class OpenRgbManager
         thread.Start();
     }
 
-    /// <summary>Says whether OpenRGB should be running and which vendors it must leave alone.</summary>
-    public void Configure(bool wanted, IEnumerable<string> skipVendors)
+    /// <summary>
+    /// Says whether OpenRGB should be running, which vendors it must leave alone, and which of
+    /// its devices the user has switched off. A switched-off device gets its detector turned
+    /// off too, so OpenRGB does not open it at all and whatever else drives it keeps control.
+    /// </summary>
+    public void Configure(bool wanted, IEnumerable<string> skipVendors, IEnumerable<string> excludedDevices)
     {
         lock (_lock)
         {
             _wanted = wanted;
             _skipVendors = [.. skipVendors.Order(StringComparer.OrdinalIgnoreCase)];
+            _excludedDevices = [.. excludedDevices.Select(x => x.Trim()).Where(x => x.Length > 0).Order(StringComparer.OrdinalIgnoreCase)];
         }
 
         _wake.Set();
@@ -106,13 +112,17 @@ internal sealed class OpenRgbManager
     private void Reconcile(CancellationToken stoppingToken)
     {
         bool wanted;
-        string[] skipVendors;
+        string[] skipVendors, excludedDevices;
 
         lock (_lock)
         {
             wanted = _wanted;
             skipVendors = _skipVendors;
+            excludedDevices = _excludedDevices;
         }
+
+        // What the running OpenRGB was configured with; a change means a restart
+        string[] configuration = [.. skipVendors, .. excludedDevices.Select(x => "device:" + x)];
 
         if (!wanted)
         {
@@ -123,10 +133,10 @@ internal sealed class OpenRgbManager
 
         if (_process is { HasExited: false })
         {
-            // The vendors to skip changed: restart so OpenRGB lets go of (or picks up) them
-            if (!skipVendors.SequenceEqual(_runningWithSkipVendors, StringComparer.OrdinalIgnoreCase))
+            // The vendors or devices to leave alone changed: restart so OpenRGB lets go of (or picks up) them
+            if (!configuration.SequenceEqual(_runningWith, StringComparer.OrdinalIgnoreCase))
             {
-                Log.Info("[openrgb] The vendors to leave alone changed; restarting OpenRGB");
+                Log.Info("[openrgb] The devices to leave alone changed; restarting OpenRGB");
                 StopProcess();
             }
             else
@@ -158,7 +168,7 @@ internal sealed class OpenRgbManager
         if (!EnsureInstalled(stoppingToken))
             return;
 
-        WriteSettings(skipVendors);
+        WriteSettings(skipVendors, excludedDevices);
 
         var exePath = Path.Combine(InstallDirectory, ExeName);
 
@@ -168,7 +178,7 @@ internal sealed class OpenRgbManager
 
             // "--server" alone runs OpenRGB with no window; the SDK listens on 127.0.0.1 only
             _process = UnelevatedLauncher.Start(exePath, $"--server --config \"{ConfigDirectory}\"", InstallDirectory);
-            _runningWithSkipVendors = skipVendors;
+            _runningWith = configuration;
 
             Log.Info($"[openrgb] Started OpenRGB {Version} unelevated (PID {_process.Id})");
         }
@@ -275,7 +285,7 @@ internal sealed class OpenRgbManager
     /// devices through the vendor's own software and two writers on one device fight.
     /// Everything else OpenRGB has written to its settings file is kept.
     /// </summary>
-    private static void WriteSettings(string[] skipVendors)
+    private static void WriteSettings(string[] skipVendors, string[] excludedDevices)
     {
         Directory.CreateDirectory(ConfigDirectory);
 
@@ -300,13 +310,15 @@ internal sealed class OpenRgbManager
         foreach (var existing in detectors)
             names.Add(existing.Key);
 
+        var forExcluded = DetectorsForDevices(excludedDevices, names);
         var updated = new JsonObject();
         var skipped = 0;
 
         foreach (var name in names.Order(StringComparer.Ordinal))
         {
             var skip = s_alwaysOff.Contains(name, StringComparer.OrdinalIgnoreCase)
-                || skipVendors.Any(x => name.Contains(x, StringComparison.OrdinalIgnoreCase));
+                || skipVendors.Any(x => name.Contains(x, StringComparison.OrdinalIgnoreCase))
+                || forExcluded.Contains(name);
 
             if (skip)
                 skipped++;
@@ -319,7 +331,41 @@ internal sealed class OpenRgbManager
 
         File.WriteAllText(path, settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
 
-        Log.Info($"[openrgb] Wrote OpenRGB settings: {names.Count} detectors, {skipped} off for {(skipVendors.Length == 0 ? "no vendors" : string.Join(", ", skipVendors))}");
+        Log.Info($"[openrgb] Wrote OpenRGB settings: {names.Count} detectors, {skipped} off for {(skipVendors.Length == 0 ? "no vendors" : string.Join(", ", skipVendors))}"
+            + (forExcluded.Count == 0 ? "" : $"; off for switched-off devices: {string.Join(", ", forExcluded.Order(StringComparer.Ordinal))}"));
+    }
+
+    /// <summary>
+    /// The detectors behind the devices the user switched off. OpenRGB does not say which
+    /// detector found a device, so this goes by name: a detector whose name is the device's
+    /// name or a prefix of it (Creative SoundBlaster AE-5 for "Creative SoundBlaster AE-5
+    /// Plus"), or, failing that, every detector naming the device's make (an NVIDIA card comes
+    /// from "Nvidia NvAPI Illumination"), which leaves that whole brand alone.
+    /// </summary>
+    private static HashSet<string> DetectorsForDevices(string[] devices, IEnumerable<string> detectorNames)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        var detectors = detectorNames.ToArray();
+
+        foreach (var device in devices)
+        {
+            var byName = detectors
+                .Where(d => d.Length >= 6 && device.StartsWith(d, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            if (byName.Length > 0)
+            {
+                result.UnionWith(byName);
+                continue;
+            }
+
+            var make = device.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+
+            if (make is { Length: >= 3 })
+                result.UnionWith(detectors.Where(d => d.Contains(make, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return result;
     }
 
     private static IEnumerable<string> ReadDetectorNames()

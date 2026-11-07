@@ -99,6 +99,11 @@
                 <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding StartsAtLogin}" Content="Start at login"
                           Visibility="{Binding Connected, Converter={StaticResource BoolToVisibility}}"
                           ToolTip="Start ChromaBridge when you log in to Windows. Changing this asks for administrator approval." />
+                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding ShowTrayIcon}" Content="Show tray icon" Margin="0,0,20,0"
+                          ToolTip="Turn off to run ChromaBridge with no tray icon. To see this window again, start ChromaBridge from the Start menu. The icon comes back while an update is waiting." />
+                <Button DockPanel.Dock="Right" Content="Exit ChromaBridge" Command="{Binding ExitCommand}" Padding="12,4" VerticalAlignment="Center" Margin="0,0,20,0"
+                        Visibility="{Binding TrayIconHidden, Converter={StaticResource BoolToVisibility}}"
+                        ToolTip="Close the tray app. Lighting keeps running; the helper does that." />
                 <Image x:Name="Lockup" Height="44" HorizontalAlignment="Left" Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality" ToolTip="ChromaBridge"
                        AutomationProperties.Name="ChromaBridge" />
@@ -192,7 +197,7 @@
                                                         <ColumnDefinition Width="176" />
                                                         <ColumnDefinition Width="152" />
                                                     </Grid.ColumnDefinitions>
-                                                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding IsDriven}" Content="{Binding Name}" ToolTip="Turn off to leave this device alone" />
+                                                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding IsDriven}" Content="{Binding Name}" ToolTip="Turn off to leave this device alone. An OpenRGB device's detector is turned off as well, so OpenRGB does not touch it either." />
                                                     <TextBlock Grid.Column="1" Text="{Binding LightsText}" Style="{StaticResource Secondary}" VerticalAlignment="Center" Margin="12,0" />
                                                     <ComboBox Grid.Column="2" ItemsSource="{Binding MappingOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Mapping"
                                                               SelectedValue="{Binding Mapping}" IsEnabled="{Binding IsDriven}" VerticalAlignment="Center"

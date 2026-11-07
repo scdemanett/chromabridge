@@ -12,21 +12,29 @@ namespace ChromaBridge.App;
 public partial class App : Application
 {
     private Mutex? _mutex;
+    private EventWaitHandle? _showEvent;
+    private RegisteredWaitHandle? _showWait;
     private Forms.NotifyIcon? _trayIcon;
     private MainWindow? _window;
     private MainViewModel? _viewModel;
+    private bool _updateWaiting;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         _mutex = new Mutex(true, BridgePaths.AppMutexName, out var first);
+        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, BridgePaths.AppShowEventName);
 
         if (!first)
         {
+            // Another copy is running, perhaps with its tray icon hidden: ask it to show its window
+            _showEvent.Set();
             Shutdown();
             return;
         }
+
+        _showWait = ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) => Dispatcher.BeginInvoke(ShowWindow), null, -1, false);
 
         _viewModel = new MainViewModel();
 
@@ -41,16 +49,20 @@ public partial class App : Application
             Icon = AppIcon.Create(Forms.SystemInformation.SmallIconSize.Width),
             Text = BridgePaths.ProductName,
             ContextMenuStrip = menu,
-            Visible = true
+            Visible = _viewModel.ShowTrayIcon
         };
 
-        // A new version is announced once from the tray; installing it is the user's click
+        // A new version is announced once from the tray; installing it is the user's click.
+        // A hidden icon comes back for it, since the notification hangs off the icon.
         _trayIcon.BalloonTipClicked += (_, _) => ShowWindow();
-        _viewModel.UpdateFound += version => TrayBalloon.Show(
-            _trayIcon,
-            "ChromaBridge update",
-            $"Version {version} is available. Open ChromaBridge to install it.",
-            10000);
+        _viewModel.UpdateFound += version =>
+        {
+            _updateWaiting = true;
+            ApplyTrayIconVisibility();
+            TrayBalloon.Show(_trayIcon, "ChromaBridge update", $"Version {version} is available. Open ChromaBridge to install it.", 10000);
+        };
+        _viewModel.ShowTrayIconChanged += _ => ApplyTrayIconVisibility();
+        _viewModel.ExitRequested += ExitApp;
 
         _trayIcon.MouseClick += (_, args) =>
         {
@@ -67,6 +79,12 @@ public partial class App : Application
             TrayBalloon.Show(_trayIcon, "ChromaBridge update", "Version 9.9.9 is available. Open ChromaBridge to install it.", 10000);
 
         _viewModel.Start();
+    }
+
+    private void ApplyTrayIconVisibility()
+    {
+        if (_trayIcon != null && _viewModel != null)
+            _trayIcon.Visible = _viewModel.ShowTrayIcon || _updateWaiting;
     }
 
     private void ShowWindow()
@@ -96,6 +114,8 @@ public partial class App : Application
     {
         if (_window is { IsVisible: true })
             _window.SavePlacement();
+
+        _showWait?.Unregister(null);
 
         if (_trayIcon != null)
         {

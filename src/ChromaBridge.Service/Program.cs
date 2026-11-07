@@ -163,7 +163,7 @@ internal static class Program
     {
         var openRgb = settings.For(KnownProviders.OpenRgb);
 
-        s_openRgb.Configure(openRgb.Enabled, openRgb.SkipVendors);
+        s_openRgb.Configure(openRgb.Enabled, openRgb.SkipVendors, openRgb.ExcludedDevices);
     }
 
     private static string? ReadOption(string[] args, string name)
