@@ -9,7 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <Product>ChromaBridge</Product>
     <Description>Makes ASUS Aura, Corsair iCUE and OpenRGB devices follow Razer Chroma.</Description>
     <Copyright>Copyright (c) 2026 Steven Demanett. Based on Chroma Control, copyright (c) 2021 Chroma Control Contributors.</Copyright>
