@@ -26,6 +26,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        WindowPlacement.Restore(this);
+
         SizeChanged += (_, args) => CardColumns = args.NewSize.Width >= TwoColumnWidth ? 2 : 1;
 
         // Given the whole .ico, WPF picks the title bar and Alt+Tab frames itself
@@ -37,6 +39,9 @@ public partial class MainWindow : Window
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         Closed += (_, _) => SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
     }
+
+    /// <summary>Remembers the window's place; the app calls this when the window hides or the app exits.</summary>
+    public void SavePlacement() => WindowPlacement.Save(this);
 
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs args)
     {

@@ -175,8 +175,13 @@ internal static class Program
 
     private static void OnFrame(ChromaFrame frame)
     {
-        if (Interlocked.Increment(ref s_framesReceived) == 1)
+        var first = Interlocked.Increment(ref s_framesReceived) == 1;
+
+        if (first)
             Log.Info($"First Chroma frame: {frame}");
+
+        if (first || !IsBlack(frame))
+            Volatile.Write(ref s_lastColorStamp, Environment.TickCount64);
 
         foreach (var worker in s_workers)
             worker.Post(frame);
@@ -258,6 +263,23 @@ internal static class Program
     private static long s_lastFrames;
     private static long s_lastFrameStamp = Environment.TickCount64;
 
+    /// <summary>When a frame with any color in it last arrived; set by the first frame too.</summary>
+    private static long s_lastColorStamp;
+
+    /// <summary>Black for this long, while frames keep arriving, means the tile is in no Studio layer.</summary>
+    private const long OnlyBlackAfterMs = 5000;
+
+    private static bool IsBlack(ChromaFrame frame)
+    {
+        for (var i = 0; i < ChromaFrame.ColorCount; i++)
+        {
+            if (frame[i].ToColorRef() != 0)
+                return false;
+        }
+
+        return true;
+    }
+
     private static void WriteStatus()
     {
         try
@@ -274,6 +296,7 @@ internal static class Program
                 Message = s_message,
                 ChromaConnected = s_chromaLive,
                 FramesPerSecond = Math.Round((frames - s_lastFrames) / seconds, 1),
+                OnlyBlack = s_chromaLive && frames > s_lastFrames && now - Volatile.Read(ref s_lastColorStamp) >= OnlyBlackAfterMs,
                 Elevated = ProcessInfo.IsElevated
             };
 

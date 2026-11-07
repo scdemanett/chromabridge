@@ -11,8 +11,8 @@
     <SelfContained>false</SelfContained>
     <Version>0.1.3</Version>
     <Product>ChromaBridge</Product>
-    <Description>Bridges Razer Chroma lighting to ASUS Aura and Corsair iCUE devices.</Description>
-    <Copyright>Copyright (c) ChromaBridge contributors. Based on Chroma Control, copyright (c) 2021 Chroma Control Contributors.</Copyright>
+    <Description>Makes ASUS Aura, Corsair iCUE and OpenRGB devices follow Razer Chroma.</Description>
+    <Copyright>Copyright (c) 2026 Steven Demanett. Based on Chroma Control, copyright (c) 2021 Chroma Control Contributors.</Copyright>
     <!-- Every project builds into one folder so the service can find the host beside it -->
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>

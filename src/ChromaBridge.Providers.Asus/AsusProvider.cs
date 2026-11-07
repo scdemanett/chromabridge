@@ -2,7 +2,6 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using AuraServiceLib;
 
 namespace ChromaBridge.Providers.Asus;
 
@@ -80,7 +79,7 @@ public sealed class AsusProvider : ILightingProvider
 
     private List<ILightingDevice> TryConnect(int attempt)
     {
-        _sdk = new AuraSdk();
+        _sdk = AuraSdk.Create();
 
         var found = Enumerate(_sdk);
 
@@ -128,8 +127,10 @@ public sealed class AsusProvider : ILightingProvider
 
         if (collection != null)
         {
-            foreach (IAuraSyncDevice device in collection)
-                result.Add(device);
+            var count = collection.Count;
+
+            for (var i = 0; i < count; i++)
+                result.Add(collection[i]);
         }
 
         return result;
@@ -248,8 +249,11 @@ internal sealed class AsusDevice : ILightingDevice
 
         try
         {
-            foreach (IAuraRgbLight light in _device.Lights)
-                lights.Add(light);
+            var collection = _device.Lights;
+            var count = collection.Count;
+
+            for (var i = 0; i < count; i++)
+                lights.Add(collection[i]);
         }
         catch (COMException ex)
         {

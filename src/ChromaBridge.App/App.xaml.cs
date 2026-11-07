@@ -75,6 +75,7 @@ public partial class App : Application
             _window.Closing += (_, args) =>
             {
                 args.Cancel = true;
+                _window.SavePlacement();
                 _window.Hide();
             };
         }
@@ -89,6 +90,9 @@ public partial class App : Application
 
     private void ExitApp()
     {
+        if (_window is { IsVisible: true })
+            _window.SavePlacement();
+
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;

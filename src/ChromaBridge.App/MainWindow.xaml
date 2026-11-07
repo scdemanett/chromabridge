@@ -175,6 +175,9 @@
 
                                 <TextBlock Text="{Binding Message}" Style="{StaticResource Secondary}" Margin="0,6,0,0" />
                                 <TextBlock Text="{Binding ChromaText}" Style="{StaticResource Secondary}" />
+                                <TextBlock Text="{Binding HintText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                           Visibility="{Binding HasHint, Converter={StaticResource BoolToVisibility}}" />
 
                                 <!-- Devices -->
                                 <StackPanel Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}" Margin="0,12,0,0">

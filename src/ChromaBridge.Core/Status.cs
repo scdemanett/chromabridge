@@ -63,6 +63,12 @@ public sealed class ProviderStatus
     /// <summary>Frames received from Razer in the last second.</summary>
     public double FramesPerSecond { get; set; }
 
+    /// <summary>
+    /// Frames keep arriving but every one has been black for a while: the usual sign that this
+    /// entry's tile is not part of any Chroma Studio effect layer.
+    /// </summary>
+    public bool OnlyBlack { get; set; }
+
     public bool Elevated { get; set; }
 
     public List<DeviceStatus> Devices { get; set; } = [];

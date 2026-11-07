@@ -128,6 +128,7 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
     private string _stateText = "";
     private string _message = "";
     private string _chromaText = "";
+    private string _hintText = "";
     private string _stateColor = "#808080";
 
     public string Id { get; } = id;
@@ -183,6 +184,19 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
         get => _chromaText;
         private set => Set(ref _chromaText, value);
     }
+
+    /// <summary>A setup step the user still has to do on Razer's side, or empty.</summary>
+    public string HintText
+    {
+        get => _hintText;
+        private set
+        {
+            if (Set(ref _hintText, value))
+                Raise(nameof(HasHint));
+        }
+    }
+
+    public bool HasHint => _hintText.Length > 0;
 
     public bool HasDevices => Devices.Count > 0;
 
@@ -256,6 +270,9 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
         ChromaText = status.State == ProviderState.Running
             ? (status.ChromaConnected ? $"Razer Chroma: {status.FramesPerSecond:F0} frames/s" : "Razer Chroma: not connected")
             : "";
+        HintText = status.State == ProviderState.Running && status.OnlyBlack
+            ? "Razer has sent only black for a while. If these lights should be lit, open Chroma Studio and add this entry's tile to your effect layer."
+            : "";
 
         // Update rows in place so checkboxes keep their state between refreshes
         for (var i = Devices.Count - 1; i >= 0; i--)
@@ -288,6 +305,7 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
         StateText = "";
         Message = "";
         ChromaText = "";
+        HintText = "";
         Devices.Clear();
         Raise(nameof(HasDevices));
     }
