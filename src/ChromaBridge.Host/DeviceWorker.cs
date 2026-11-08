@@ -124,6 +124,12 @@ internal sealed class DeviceWorker
                 Interlocked.Increment(ref _applied);
                 _consecutiveFailures = 0;
             }
+            catch (DeviceLostException ex)
+            {
+                Log.Info($"\"{Name}\": {ex.Message} Reconnecting.");
+                _deviceLost();
+                return;
+            }
             catch (Exception ex)
             {
                 var failures = Interlocked.Increment(ref _failures);

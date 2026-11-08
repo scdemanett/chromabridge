@@ -74,6 +74,12 @@ ChromaBridge verifies that it is signed by the ChromaBridge publisher.
   and it is set to leave Razer devices alone, and ASUS or Corsair devices while their own
   provider is on, so it does not compete with their software. Switching an OpenRGB device
   off turns its OpenRGB detector off as well. Its SDK port is open to this PC only.
+  OpenRGB devices get every other Chroma frame, about 14 writes a second, because OpenRGB's
+  hardware writes are slow and cost it real CPU time; effects look the same.
+- If one provider's lights stay dark after the PC wakes from sleep while the others
+  follow Chroma, Synapse has stopped sending color for that one entry. Restart Razer
+  Synapse; toggling the entry in Chroma Connect does not help. ChromaBridge itself keeps
+  running and reconnects on its own.
 - Some lights can only be one color. The GeForce RTX 5090 Founders Edition, for example,
   can only be switched on or off.
 

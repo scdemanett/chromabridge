@@ -309,7 +309,7 @@ public sealed class ProviderViewModel(string id, string displayName, Action chan
             ? (status.ChromaConnected ? $"Razer Chroma: {status.FramesPerSecond:F0} frames/s" : "Razer Chroma: not connected")
             : "";
         HintText = status.State == ProviderState.Running && status.OnlyBlack
-            ? "Razer has sent only black for a while. If these lights should be lit, open Chroma Studio and add this entry's tile to your effect layer."
+            ? "Razer has sent only black for a while. If this entry's tile is not in a Chroma Studio effect layer, add it. If it is, and the lights were lit before the PC slept, restart Razer Synapse."
             : "";
 
         // Update rows in place so checkboxes keep their state between refreshes. A row for a

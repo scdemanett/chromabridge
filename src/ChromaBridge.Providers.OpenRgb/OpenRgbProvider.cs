@@ -1,5 +1,6 @@
 // Licensed under the MIT license. See LICENSE.txt in the project root.
 
+using System.Diagnostics;
 using System.Net.Sockets;
 
 namespace ChromaBridge.Providers.OpenRgb;
@@ -112,8 +113,18 @@ public sealed class OpenRgbProvider : ILightingProvider
 
 internal sealed class OpenRgbDevice(OpenRgbClient client, int index, string name, int lightCount) : ILightingDevice
 {
+    /// <summary>
+    /// The shortest gap between two writes. OpenRGB writes to hardware over slow buses
+    /// (SMBus memory, USB, the sound card's own path) and spends around 10 ms of CPU per
+    /// write on some controllers, so at Chroma's 28 frames/s it is sent every other frame.
+    /// Spectrum and static effects change far slower than that; the dropped frame is the
+    /// next one's small step.
+    /// </summary>
+    public static readonly TimeSpan MinWriteInterval = TimeSpan.FromMilliseconds(45);
+
     private readonly Rgb[] _last = new Rgb[lightCount];
     private bool _written;
+    private long _lastWrite;
 
     public string Name { get; } = name;
 
@@ -121,19 +132,25 @@ internal sealed class OpenRgbDevice(OpenRgbClient client, int index, string name
 
     public void Apply(ReadOnlySpan<Rgb> colors)
     {
-        // Throwing tells the host to reconnect, which lists the controllers again
+        // The host reconnects, which lists the controllers again
         if (client.Closed)
-            throw new IOException("The connection to OpenRGB was lost.");
+            throw new DeviceLostException("The connection to OpenRGB was lost.");
 
         if (client.DeviceListChanged)
-            throw new IOException("OpenRGB's device list changed.");
+            throw new DeviceLostException("OpenRGB's device list changed.");
 
         if (_written && colors.SequenceEqual(_last))
+            return;
+
+        var now = Stopwatch.GetTimestamp();
+
+        if (_written && Stopwatch.GetElapsedTime(_lastWrite, now) < MinWriteInterval)
             return;
 
         client.UpdateLeds(index, colors);
 
         colors.CopyTo(_last);
         _written = true;
+        _lastWrite = now;
     }
 }

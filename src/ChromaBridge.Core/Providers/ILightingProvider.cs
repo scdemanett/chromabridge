@@ -39,8 +39,16 @@ public interface ILightingDevice
     int LightCount { get; }
 
     /// <summary>
-    /// Writes one color per light and sends them to the hardware. Throws when the device
-    /// can no longer be reached.
+    /// Writes one color per light and sends them to the hardware. Throws when the write
+    /// fails; throws <see cref="DeviceLostException"/> when the device is known to be gone,
+    /// so the host reconnects at once instead of counting failures.
     /// </summary>
     void Apply(ReadOnlySpan<Rgb> colors);
 }
+
+/// <summary>
+/// The device is gone for a known reason: the connection closed, or the vendor software
+/// re-enumerated its devices. The host reconnects at once and logs it as information, not
+/// as a failure.
+/// </summary>
+public sealed class DeviceLostException(string message) : Exception(message);

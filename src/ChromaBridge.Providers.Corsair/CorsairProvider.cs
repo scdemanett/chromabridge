@@ -14,6 +14,7 @@ namespace ChromaBridge.Providers.Corsair;
 public sealed class CorsairProvider : ILightingProvider
 {
     private static readonly TimeSpan s_retryDelay = TimeSpan.FromSeconds(5);
+    private const string NotReachable = "not reachable; the SDK keeps retrying";
 
     private readonly ManualResetEventSlim _stateChanged = new(false);
 
@@ -22,6 +23,9 @@ public sealed class CorsairProvider : ILightingProvider
 
     private volatile int _state = Native.StateClosed;
     private bool _connectCalled;
+    // Starts as "not reachable" so the transient "connecting" at startup is not logged
+    private string _lastLoggedReachability = NotReachable;
+    private long _lastAttemptLog;
 
     public CorsairProvider()
     {
@@ -71,8 +75,15 @@ public sealed class CorsairProvider : ILightingProvider
                     : "Waiting for iCUE. Is it running?");
             }
 
-            if (attempt == 1 || attempt % 12 == 0)
-                Log.Info($"Attempt {attempt}: no Corsair devices yet (session state {_state})");
+            // The SDK's own retry wakes this loop every second while iCUE is away, so log
+            // by time, not by count: once a minute, with the first attempt
+            var now = Environment.TickCount64;
+
+            if (attempt == 1 || now - _lastAttemptLog >= 60_000)
+            {
+                Log.Info($"Attempt {attempt}: no Corsair devices yet (session state {Native.DescribeState(_state)})");
+                _lastAttemptLog = now;
+            }
 
             _stateChanged.Reset();
 
@@ -157,7 +168,20 @@ public sealed class CorsairProvider : ILightingProvider
 
             _state = Marshal.ReadInt32(eventData);
 
-            Log.Info($"iCUE session state: {Native.DescribeState(_state)}");
+            // While iCUE is away the SDK alternates "connecting" and "timeout" every second,
+            // for hours when the PC sleeps. Log only when reachability changes.
+            var reachability = _state switch
+            {
+                Native.StateConnected => "connected",
+                Native.StateConnectionRefused => "connection refused (is the SDK turned on in iCUE?)",
+                _ => NotReachable
+            };
+
+            if (reachability != _lastLoggedReachability)
+            {
+                Log.Info($"iCUE session: {reachability}");
+                _lastLoggedReachability = reachability;
+            }
 
             _stateChanged.Set();
         }
