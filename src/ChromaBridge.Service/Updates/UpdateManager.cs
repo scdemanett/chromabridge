@@ -360,8 +360,11 @@ internal sealed class UpdateManager
 
             File.WriteAllText(s_relaunchMarker, version ?? "");
 
-            // The installer stops this service, replaces the files and starts it again
-            Process.Start(new ProcessStartInfo(path, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART")
+            // The installer stops this service, replaces the files and starts it again. Its own
+            // log lands beside ours: a silent install that aborts leaves no other trace.
+            var installerLog = Path.Combine(BridgePaths.LogDirectory, "setup-installer.log");
+
+            Process.Start(new ProcessStartInfo(path, $"/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=\"{installerLog}\"")
             {
                 UseShellExecute = false,
                 WorkingDirectory = s_updatesDirectory

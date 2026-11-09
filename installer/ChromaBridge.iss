@@ -70,11 +70,28 @@ Filename: "{app}\ChromaBridge.Service.exe"; Parameters: "--stop"; Flags: runhidd
 Filename: "{app}\ChromaBridge.Service.exe"; Parameters: "--unregister-startup"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveTask"
 
 [Code]
-// Before files are replaced on an upgrade: close the tray app and ask the helper to stop,
-// which hands lighting control back and releases the files.
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+// True while the helper or a host process is still running. tasklist is the one process
+// listing available here; its output goes through a file.
+function HelperRunning(): Boolean;
 var
   ResultCode: Integer;
+  ListFile: String;
+  Output: AnsiString;
+begin
+  ListFile := ExpandConstant('{tmp}\tasks.txt');
+  Exec(ExpandConstant('{cmd}'), '/C tasklist /FO CSV /NH > "' + ListFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
+  if LoadStringFromFile(ListFile, Output) then
+    Result := (Pos('"ChromaBridge.Service.exe"', Output) > 0) or (Pos('"ChromaBridge.Host.exe"', Output) > 0);
+end;
+
+// Before files are replaced on an upgrade: close the tray app and ask the helper to stop,
+// which hands lighting control back and releases the files. The helper waits for its hosts
+// to release their devices, which takes seconds and varies, so wait for the processes to
+// be gone rather than a fixed time; a silent install that finds a file in use just aborts.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode, Waited: Integer;
   Helper: String;
 begin
   Result := '';
@@ -85,8 +102,24 @@ begin
   if FileExists(Helper) then
   begin
     Exec(Helper, '--stop', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    // The helper waits for its provider hosts to release their devices
-    Sleep(6000);
+
+    Waited := 0;
+    while HelperRunning() and (Waited < 45000) do
+    begin
+      Sleep(1000);
+      Waited := Waited + 1000;
+    end;
+
+    // Still there after 45 s: a host stuck in a vendor SDK. End it rather than fail the install.
+    if HelperRunning() then
+    begin
+      Log('The helper did not stop in 45 s; ending it');
+      Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ChromaBridge.Host.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ChromaBridge.Service.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Sleep(2000);
+    end
+    else
+      Log('The helper stopped after ' + IntToStr(Waited div 1000) + ' s');
   end;
 end;
 
