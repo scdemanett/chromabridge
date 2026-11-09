@@ -262,8 +262,25 @@ internal sealed class AsusDevice : ILightingDevice
         _lastColors = new uint?[_lights.Length];
     }
 
+    /// <summary>
+    /// Frames stop while the PC is locked or asleep (Synapse sends nothing then), and Armoury
+    /// Crate takes the lights back meanwhile. The SDK keeps accepting writes it no longer
+    /// shows, so a gap this long means control must be requested afresh.
+    /// </summary>
+    private const long IdleReconnectMs = 30000;
+
+    private long _lastApply;
+
     public void Apply(ReadOnlySpan<Rgb> colors)
     {
+        var now = Environment.TickCount64;
+        var idle = _lastApply == 0 ? 0 : now - _lastApply;
+        _lastApply = now;
+
+        // Only a fresh connection gets control again, so hand the host over for a restart
+        if (idle >= IdleReconnectMs)
+            throw new DeviceLostException($"No frames for {idle / 1000} s, so Armoury Crate has likely taken the lights back.");
+
         var changed = false;
         var count = Math.Min(colors.Length, _lights.Length);
 

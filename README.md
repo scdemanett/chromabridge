@@ -88,6 +88,9 @@ to while reproducing a problem, then off again.
   off turns its OpenRGB detector off as well. Its SDK port is open to this PC only.
   OpenRGB devices get every other Chroma frame, about 14 writes a second, because OpenRGB's
   hardware writes are slow and cost it real CPU time; effects look the same.
+- Synapse sends nothing while the PC is locked or asleep, and Armoury Crate takes the ASUS
+  lights back meanwhile. When Chroma resumes, ChromaBridge reconnects to Aura to get them
+  back, so ASUS lights rejoin a few seconds after the others.
 - If one provider's lights stay dark after the PC wakes from sleep while the others
   follow Chroma, Synapse has stopped sending color for that one entry. Restart Razer
   Synapse; toggling the entry in Chroma Connect does not help. ChromaBridge itself keeps
