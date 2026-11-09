@@ -111,6 +111,9 @@ public sealed class BridgeSettings
     /// <summary>Look for a new ChromaBridge version once a day. Never installs by itself.</summary>
     public bool CheckForUpdates { get; set; } = true;
 
+    /// <summary>Write detailed troubleshooting lines to the log files. Off by default.</summary>
+    public bool VerboseLogging { get; set; }
+
     /// <summary>Settings per provider ID (lower case).</summary>
     public Dictionary<string, ProviderSettings> Providers { get; set; } = [];
 
@@ -174,6 +177,7 @@ public sealed class BridgeSettings
     public BridgeSettings Clone() => new()
     {
         CheckForUpdates = CheckForUpdates,
+        VerboseLogging = VerboseLogging,
         Providers = Providers.ToDictionary(x => x.Key, x => x.Value.Clone())
     };
 

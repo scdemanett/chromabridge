@@ -23,6 +23,8 @@ public sealed class CorsairProvider : ILightingProvider
 
     private volatile int _state = Native.StateClosed;
     private bool _connectCalled;
+    // The SDK reports "closed" while we disconnect; that is not a lost session
+    private volatile bool _disconnecting;
     // Starts as "not reachable" so the transient "connecting" at startup is not logged
     private string _lastLoggedReachability = NotReachable;
     private long _lastAttemptLog;
@@ -39,6 +41,7 @@ public sealed class CorsairProvider : ILightingProvider
             throw new InvalidOperationException("The iCUE SDK library could not be downloaded. ChromaBridge will try again.");
 
         report("Connecting to iCUE...");
+        _disconnecting = false;
 
         try
         {
@@ -96,6 +99,8 @@ public sealed class CorsairProvider : ILightingProvider
     {
         if (!_connectCalled)
             return;
+
+        _disconnecting = true;
 
         try
         {
@@ -167,6 +172,9 @@ public sealed class CorsairProvider : ILightingProvider
                 return;
 
             _state = Marshal.ReadInt32(eventData);
+
+            if (_disconnecting)
+                return;
 
             // While iCUE is away the SDK alternates "connecting" and "timeout" every second,
             // for hours when the PC sleeps. Log only when reachability changes.

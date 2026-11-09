@@ -79,17 +79,39 @@
         <!-- Version and updates: fixed at the bottom of the window, outside the scrolling area -->
         <Border DockPanel.Dock="Bottom" Padding="20,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                 Visibility="{Binding Connected, Converter={StaticResource BoolToVisibility}}">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Check now" Command="{Binding CheckNowCommand}" IsEnabled="{Binding UpdateIdle}" Padding="14,5" VerticalAlignment="Center" Margin="12,0,0,0" />
-                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding CheckForUpdates}" Content="Check for updates automatically" Margin="12,0,0,0"
-                          ToolTip="Look for a new version once a day. Finding one only tells you; it is never installed without your say-so." />
-                <StackPanel VerticalAlignment="Center">
+            <!-- The text keeps its own width; the controls take the rest and wrap onto a
+                 second line when the window is at its narrowest -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" MaxWidth="260">
                     <TextBlock Text="{Binding VersionText}" Style="{StaticResource Secondary}" />
                     <TextBlock Text="{Binding UpdateText}" Style="{StaticResource Secondary}" />
                     <TextBlock Text="{Binding LastCheckedText}" Style="{StaticResource Secondary}"
                                Visibility="{Binding HasLastChecked, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
-            </DockPanel>
+                <!-- Two rows sharing columns: switches on the left, buttons in one column right
+                     after the longer label, so each button stays beside its switch -->
+                <Grid Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding VerboseLogging}" Content="Verbose logging" VerticalAlignment="Center" Margin="0,0,0,8"
+                              ToolTip="Writes detailed lines to the logs: every request from this window, frame and write rates once a minute. Turn it on when asked to, while reproducing a problem." />
+                    <Button Grid.Column="1" Content="Open logs" Command="{Binding OpenLogsCommand}" Padding="14,5" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="16,0,0,8"
+                            ToolTip="Shows the log files. Attach them when reporting a problem." />
+                    <CheckBox Grid.Row="1" Style="{StaticResource Switch}" IsChecked="{Binding CheckForUpdates}" Content="Check for updates automatically" VerticalAlignment="Center"
+                              ToolTip="Look for a new version once a day. Finding one only tells you; it is never installed without your say-so." />
+                    <Button Grid.Row="1" Grid.Column="1" Content="Check now" Command="{Binding CheckNowCommand}" IsEnabled="{Binding UpdateIdle}" Padding="14,5" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="16,0,0,0" />
+                </Grid>
+            </Grid>
         </Border>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">

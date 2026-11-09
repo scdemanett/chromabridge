@@ -235,6 +235,9 @@ internal static class Program
 
                 if (message.Type == MessageTypes.ProviderSettings && message.ProviderSettings != null)
                 {
+                    if (message.VerboseLogging is bool verbose)
+                        Log.VerboseEnabled = verbose;
+
                     s_settings = message.ProviderSettings;
                     s_correction = new ColorCorrection(message.ProviderSettings);
 
@@ -272,6 +275,55 @@ internal static class Program
     /// <summary>Black for this long, while frames keep arriving, means the tile is in no Studio layer.</summary>
     private const long OnlyBlackAfterMs = 5000;
 
+    /// <summary>No frames for this long, while Razer says it is connected, is worth a log line.</summary>
+    private const long StalledAfterMs = 10000;
+
+    private static long s_stalledSince;
+    private static bool s_stallLogged;
+    private static bool s_onlyBlackLogged;
+    private static int s_statusTicks;
+
+    /// <summary>
+    /// Logs the transitions a user would describe as "it stopped following" or "it went
+    /// dark": frames stopping and resuming, and Razer sending only black and color again.
+    /// Once a minute, with verbose logging on, the frame and write rates as well.
+    /// </summary>
+    private static void LogFrameFlow(ProviderStatus status, long frames, long now)
+    {
+        if (status.ChromaConnected && frames == s_lastFrames)
+        {
+            if (s_stalledSince == 0)
+                s_stalledSince = now;
+            else if (!s_stallLogged && now - s_stalledSince >= StalledAfterMs)
+            {
+                Log.Info($"No Chroma frames for {StalledAfterMs / 1000} s while Razer reports connected");
+                s_stallLogged = true;
+            }
+        }
+        else
+        {
+            if (s_stallLogged)
+                Log.Info($"Chroma frames resumed after {(now - s_stalledSince) / 1000} s");
+
+            s_stalledSince = 0;
+            s_stallLogged = false;
+        }
+
+        if (status.OnlyBlack != s_onlyBlackLogged)
+        {
+            Log.Info(status.OnlyBlack ? "Razer is sending only black" : "Razer is sending color again");
+            s_onlyBlackLogged = status.OnlyBlack;
+        }
+
+        if (++s_statusTicks % 60 == 0 && Log.VerboseEnabled)
+        {
+            var devices = string.Join("; ", status.Devices.Where(d => !d.Excluded)
+                .Select(d => $"\"{d.Name}\" {d.UpdatesPerSecond} writes/s, {d.ApplyMilliseconds} ms each, {d.Failures} failed"));
+
+            Log.Verbose($"Razer {status.FramesPerSecond} frames/s, live {status.ChromaConnected}, state {status.State}; {devices}");
+        }
+    }
+
     private static bool IsBlack(ChromaFrame frame)
     {
         for (var i = 0; i < ChromaFrame.ColorCount; i++)
@@ -302,13 +354,15 @@ internal static class Program
                 OnlyBlack = s_chromaLive && frames > s_lastFrames && now - Volatile.Read(ref s_lastColorStamp) >= OnlyBlackAfterMs
             };
 
-            s_lastFrames = frames;
-            s_lastFrameStamp = now;
-
             foreach (var worker in s_workers)
                 status.Devices.Add(worker.TakeStatus());
 
             status.Devices.AddRange(s_excludedDevices);
+
+            LogFrameFlow(status, frames, now);
+
+            s_lastFrames = frames;
+            s_lastFrameStamp = now;
 
             WriteMessage(new BridgeMessage { Type = MessageTypes.ProviderStatus, ProviderStatus = status });
         }

@@ -1,5 +1,7 @@
 // Licensed under the MIT license. See LICENSE.txt in the project root.
 
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using ChromaBridge.Service.OpenRgb;
 using ChromaBridge.Service.Updates;
 
@@ -64,7 +66,17 @@ internal static class Program
         using var mutex = new Mutex(true, BridgePaths.ServiceMutexName, out var first);
 
         if (!first)
+        {
+            // Say so in the log, or a helper that "never started" is a mystery (the logon task
+            // firing while an older helper is still releasing its devices does this)
+            if (DataDirectory.Secure())
+            {
+                Log.Initialize("service");
+                Log.Info($"Another ChromaBridge helper is already running; this one (PID {Environment.ProcessId}) exits");
+            }
+
             return 1;
+        }
 
         // The folder would hold settings this elevated process trusts; it is checked before
         // anything, the log included, is written into it
@@ -78,6 +90,10 @@ internal static class Program
         using var stopping = new CancellationTokenSource();
 
         s_settings = SettingsStore.Load();
+        Log.VerboseEnabled = s_settings.VerboseLogging;
+
+        Log.Info(DescribeEnvironment());
+        PowerEvents.Start();
 
         foreach (var (id, _) in KnownProviders.All)
             s_supervisors[id] = new ProviderSupervisor(id, s_settings.For(id));
@@ -107,13 +123,52 @@ internal static class Program
 
         // After the hosts, so the OpenRGB provider is not still writing to it
         s_openRgb.Stop();
+        PowerEvents.Stop();
 
         Log.Info("Stopped");
 
         return 0;
     }
 
+    /// <summary>
+    /// The facts a log reader needs before anything else: what this PC runs, which edition
+    /// this is, and whether Razer's Chroma Broadcast library is there at all.
+    /// </summary>
+    private static string DescribeEnvironment()
+    {
+        string chroma;
+
+        try
+        {
+            var path = Path.Combine(Environment.SystemDirectory, "RzChromaBroadcastAPI64.dll");
+            chroma = File.Exists(path) ? FileVersionInfo.GetVersionInfo(path).FileVersion ?? "unknown version" : "not installed";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            chroma = "unreadable";
+        }
+
+        return $"Environment: {RuntimeInformation.OSDescription}, .NET {Environment.Version}, {Environment.ProcessorCount} logical processors; " +
+               $"{BridgePaths.Edition} edition in \"{BridgePaths.InstallDirectory}\"; Razer Chroma Broadcast API {chroma}; " +
+               $"session {Process.GetCurrentProcess().SessionId} as {Environment.UserName}; verbose logging {(Log.VerboseEnabled ? "on" : "off")}";
+    }
+
+    /// <summary>Answers one request from the tray app, noting any that take long enough to make the window lag.</summary>
     private static BridgeMessage Handle(BridgeMessage request)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var reply = HandleCore(request);
+        var elapsed = Stopwatch.GetElapsedTime(started);
+
+        if (elapsed.TotalSeconds >= 2)
+            Log.Warn($"Request '{request.Type}' took {elapsed.TotalSeconds:F1} s to answer");
+        else
+            Log.Verbose($"Request '{request.Type}' answered with '{reply.Type}' in {elapsed.TotalMilliseconds:F0} ms");
+
+        return reply;
+    }
+
+    private static BridgeMessage HandleCore(BridgeMessage request)
     {
         switch (request.Type)
         {
@@ -145,7 +200,17 @@ internal static class Program
     {
         lock (s_settingsLock)
         {
+            var previous = s_settings;
             s_settings = settings.Normalize();
+
+            var changes = DescribeChanges(previous, s_settings);
+
+            if (changes.Length > 0)
+                Log.Info($"Settings from the app: {changes}");
+            else
+                Log.Verbose("Settings from the app: no change");
+
+            Log.VerboseEnabled = s_settings.VerboseLogging;
 
             try
             {
@@ -164,6 +229,50 @@ internal static class Program
 
             return new BridgeMessage { Type = MessageTypes.Settings, Settings = s_settings.Clone() };
         }
+    }
+
+    /// <summary>What the app changed, in the words the log reader needs ("corsair off; asus gamma 1 -> 2").</summary>
+    private static string DescribeChanges(BridgeSettings previous, BridgeSettings next)
+    {
+        var changes = new List<string>();
+
+        if (previous.CheckForUpdates != next.CheckForUpdates)
+            changes.Add($"update checks {(next.CheckForUpdates ? "on" : "off")}");
+
+        if (previous.VerboseLogging != next.VerboseLogging)
+            changes.Add($"verbose logging {(next.VerboseLogging ? "on" : "off")}");
+
+        foreach (var (id, _) in KnownProviders.All)
+        {
+            var before = previous.For(id);
+            var after = next.For(id);
+
+            if (before.Enabled != after.Enabled)
+                changes.Add($"{id} {(after.Enabled ? "on" : "off")}");
+
+            if (before.Gamma != after.Gamma)
+                changes.Add($"{id} gamma {before.Gamma} -> {after.Gamma}");
+
+            if (before.Saturation != after.Saturation)
+                changes.Add($"{id} saturation {before.Saturation} -> {after.Saturation}");
+
+            if (before.Brightness != after.Brightness)
+                changes.Add($"{id} brightness {before.Brightness} -> {after.Brightness}");
+
+            foreach (var device in after.ExcludedDevices.Except(before.ExcludedDevices, StringComparer.OrdinalIgnoreCase))
+                changes.Add($"{id} \"{device}\" off");
+
+            foreach (var device in before.ExcludedDevices.Except(after.ExcludedDevices, StringComparer.OrdinalIgnoreCase))
+                changes.Add($"{id} \"{device}\" on");
+
+            foreach (var (device, mapping) in after.Mappings)
+            {
+                if (!before.Mappings.TryGetValue(device, out var old) || old != mapping)
+                    changes.Add($"{id} \"{device}\" mapped {mapping}");
+            }
+        }
+
+        return string.Join("; ", changes);
     }
 
     private static void ConfigureOpenRgb(BridgeSettings settings)

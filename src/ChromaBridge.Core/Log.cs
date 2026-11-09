@@ -17,6 +17,12 @@ public static class Log
     /// <summary>The file being written, or null before <see cref="Initialize"/>.</summary>
     public static string? FilePath => s_path;
 
+    /// <summary>
+    /// Whether <see cref="Verbose"/> lines are written. Off unless the settings turn it on;
+    /// the service sets it from the settings and passes it to each host.
+    /// </summary>
+    public static volatile bool VerboseEnabled;
+
     public static void Initialize(string name)
     {
         try
@@ -37,6 +43,13 @@ public static class Log
     public static void Warn(string message) => Write("WARN", message, null);
 
     public static void Error(string message, Exception? exception = null) => Write("FAIL", message, exception);
+
+    /// <summary>Detail for troubleshooting; written only while <see cref="VerboseEnabled"/>.</summary>
+    public static void Verbose(string message)
+    {
+        if (VerboseEnabled)
+            Write("VERB", message, null);
+    }
 
     private static void Write(string level, string message, Exception? exception)
     {

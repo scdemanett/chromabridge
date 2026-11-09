@@ -46,6 +46,9 @@ public sealed class BridgeMessage
 
     public ProviderSettings? ProviderSettings { get; set; }
 
+    /// <summary>With <see cref="MessageTypes.ProviderSettings"/>: whether the host writes verbose log lines.</summary>
+    public bool? VerboseLogging { get; set; }
+
     public string? Error { get; set; }
 }
 

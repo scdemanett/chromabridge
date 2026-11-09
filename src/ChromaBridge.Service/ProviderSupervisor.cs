@@ -180,10 +180,14 @@ internal sealed class ProviderSupervisor
 
         _process = null;
 
+        var started = Stopwatch.GetTimestamp();
+
         try
         {
             if (!process.HasExited)
             {
+                Log.Info($"[{_id}] Stopping the host (PID {process.Id})");
+
                 process.StandardInput.WriteLine(BridgeJson.Serialize(new BridgeMessage { Type = MessageTypes.Stop }));
                 process.StandardInput.Flush();
                 process.StandardInput.Close();
@@ -208,15 +212,17 @@ internal sealed class ProviderSupervisor
             process.Dispose();
         }
 
-        Log.Info($"[{_id}] Host stopped");
+        Log.Info($"[{_id}] Host stopped in {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F0} ms");
     }
 
     private void SendSettings()
     {
         try
         {
-            _process?.StandardInput.WriteLine(BridgeJson.Serialize(new BridgeMessage { Type = MessageTypes.ProviderSettings, ProviderSettings = _settings }));
+            _process?.StandardInput.WriteLine(BridgeJson.Serialize(new BridgeMessage { Type = MessageTypes.ProviderSettings, ProviderSettings = _settings, VerboseLogging = Log.VerboseEnabled }));
             _process?.StandardInput.Flush();
+
+            Log.Verbose($"[{_id}] Sent settings to the host: enabled {_settings.Enabled}, gamma {_settings.Gamma}, saturation {_settings.Saturation}, brightness {_settings.Brightness}, {_settings.ExcludedDevices.Count} excluded, {_settings.Mappings.Count} mapped");
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
@@ -236,6 +242,9 @@ internal sealed class ProviderSupervisor
             if (!ReferenceEquals(process, _process))
                 return;
 
+            if (message.ProviderStatus.State != _status.State)
+                Log.Verbose($"[{_id}] Host state: {_status.State} -> {message.ProviderStatus.State} ({message.ProviderStatus.Message})");
+
             _status = message.ProviderStatus;
 
             // A host that reaches Running has recovered; the next restart starts quickly again
@@ -246,12 +255,23 @@ internal sealed class ProviderSupervisor
 
     private void OnHostExited(Process process)
     {
-        // Exited can fire before the last output line has been delivered; waiting without a
-        // timeout drains the output, so a final status (the host's reason for stopping) is
-        // seen before it is judged below
+        // Stopped on purpose: StopHost already cleared the field, and may be the caller
+        // (WaitForExit raises Exited on its own thread). Its final status is of no interest,
+        // and draining here would wait for OnHostOutput, which needs the lock StopHost holds.
+        if (!ReferenceEquals(process, Volatile.Read(ref _process)))
+            return;
+
+        // Exited can fire before the last output line has been delivered; waiting for the
+        // output to end lets a final status (the host's reason for stopping) be seen before
+        // it is judged below. Bounded, so a stuck reader can never stall the supervisor.
         try
         {
-            process.WaitForExit();
+            using var drain = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            process.WaitForExitAsync(drain.Token).GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warn($"[{_id}] The host's output did not end within 2 s of its exit");
         }
         catch (Exception ex) when (ex is InvalidOperationException or SystemException)
         {

@@ -409,6 +409,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _startsAtLogin;
     private readonly UserPreferences _preferences = UserPreferences.Load();
     private bool _checkForUpdates = true;
+    private bool _verboseLogging;
     private bool _updateAvailable;
     private bool _updateBusy;
     private bool _pendingCheck;
@@ -425,6 +426,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ICommand StartHelperCommand { get; }
 
     public ICommand CheckNowCommand { get; }
+
+    public ICommand OpenLogsCommand { get; }
 
     public ICommand InstallUpdateCommand { get; }
 
@@ -469,6 +472,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set
         {
             if (Set(ref _checkForUpdates, value))
+                OnSettingsEdited();
+        }
+    }
+
+    /// <summary>Write detailed troubleshooting lines to the log files.</summary>
+    public bool VerboseLogging
+    {
+        get => _verboseLogging;
+        set
+        {
+            if (Set(ref _verboseLogging, value))
                 OnSettingsEdited();
         }
     }
@@ -569,6 +583,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         StartHelperCommand = new RelayCommand(StartHelper);
         ExitCommand = new RelayCommand(() => ExitRequested?.Invoke());
+        OpenLogsCommand = new RelayCommand(OpenLogs);
 
         // Sent on the next poll: the connection carries one request at a time
         CheckNowCommand = new RelayCommand(() =>
@@ -613,6 +628,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                     _checkForUpdates = settings.CheckForUpdates;
                     Raise(nameof(CheckForUpdates));
+
+                    _verboseLogging = settings.VerboseLogging;
+                    Raise(nameof(VerboseLogging));
 
                     _settingsLoaded = true;
                 }
@@ -716,7 +734,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            var settings = new BridgeSettings { CheckForUpdates = CheckForUpdates };
+            var settings = new BridgeSettings { CheckForUpdates = CheckForUpdates, VerboseLogging = VerboseLogging };
 
             foreach (var provider in Providers)
                 settings.Providers[provider.Id] = provider.ToSettings();
@@ -726,6 +744,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         finally
         {
             _busy = false;
+        }
+    }
+
+    /// <summary>Shows the log folder, which is what a bug report needs attached.</summary>
+    private static void OpenLogs()
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(BridgePaths.LogDirectory);
+            Process.Start(new ProcessStartInfo(BridgePaths.LogDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            // The tray app has no log of its own; the folder simply stays closed
         }
     }
 

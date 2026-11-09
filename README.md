@@ -68,6 +68,18 @@ ChromaBridge checks GitHub for a new release once a day and tells you when there
 Nothing is downloaded or installed until you click Install. Before running an installer,
 ChromaBridge verifies that it is signed by the ChromaBridge publisher.
 
+## If something goes wrong
+
+ChromaBridge keeps logs in `C:\ProgramData\ChromaBridge\logs`, one file per part: the
+helper, and one host per provider. The **Open logs** button at the bottom of the window
+shows the folder. When reporting a problem, say what you saw and when, and attach the logs.
+
+The logs record what matters on their own: the environment at startup, every change made
+in the window, hosts starting and stopping, sleep and wake, Razer frames stopping or going
+black, and devices lost and found. **Verbose logging**, next to the button, adds every
+request from the window and the frame and write rates once a minute. Turn it on when asked
+to while reproducing a problem, then off again.
+
 ## Good to know
 
 - OpenRGB is started without administrator rights and without its low-level bus driver,
