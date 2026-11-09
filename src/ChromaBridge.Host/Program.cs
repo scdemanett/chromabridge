@@ -309,7 +309,8 @@ internal static class Program
             s_stallLogged = false;
         }
 
-        if (status.OnlyBlack != s_onlyBlackLogged)
+        // Judged only while Razer is connected: a disconnect is not color coming back
+        if (status.ChromaConnected && status.OnlyBlack != s_onlyBlackLogged)
         {
             Log.Info(status.OnlyBlack ? "Razer is sending only black" : "Razer is sending color again");
             s_onlyBlackLogged = status.OnlyBlack;
