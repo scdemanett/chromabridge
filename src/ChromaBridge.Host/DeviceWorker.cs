@@ -27,6 +27,7 @@ internal sealed class DeviceWorker
     private long _applyTicks;
     private long _failures;
     private int _consecutiveFailures;
+    private long _unservedSince;
 
     // Snapshot taken by the previous TakeStatus call, to turn totals into rates
     private long _lastApplied;
@@ -57,7 +58,22 @@ internal sealed class DeviceWorker
     public void Post(ChromaFrame frame)
     {
         Interlocked.Exchange(ref _pending, frame);
+        Interlocked.CompareExchange(ref _unservedSince, Environment.TickCount64, 0);
         _signal.Set();
+    }
+
+    /// <summary>
+    /// How long the oldest frame not yet written has been waiting, or 0 when the worker is
+    /// caught up. It grows without bound when a write never returns: vendor SDKs can block
+    /// forever inside a call, which shows no failure and no log line.
+    /// </summary>
+    public long UnservedMilliseconds
+    {
+        get
+        {
+            var since = Interlocked.Read(ref _unservedSince);
+            return since == 0 ? 0 : Environment.TickCount64 - since;
+        }
     }
 
     /// <summary>Waits for the worker to finish after its stopping token was cancelled.</summary>
@@ -143,6 +159,12 @@ internal sealed class DeviceWorker
                     _deviceLost();
                     return;
                 }
+            }
+            finally
+            {
+                // The write returned, whatever its outcome; a frame posted meanwhile is
+                // picked up at once and the next Post starts the clock again
+                Interlocked.Exchange(ref _unservedSince, 0);
             }
         }
     }

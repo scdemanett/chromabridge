@@ -336,10 +336,56 @@ internal static class Program
         return true;
     }
 
+    /// <summary>A frame waiting this long means the write before it never returned.</summary>
+    private const long StuckWriteMs = 10000;
+
+    private static int s_stuckChecks;
+    private static bool s_stuckHandled;
+
+    /// <summary>
+    /// Restarts the host when a device's write has not returned. A vendor SDK can block
+    /// forever inside a call, typically one made as its software comes back after a lock or
+    /// sleep; the worker then writes nothing, fails nothing and logs nothing. Seen on two
+    /// checks in a row, so a frame caught mid-flight by the PC going to sleep does not count.
+    /// </summary>
+    private static void CheckForStuckWrites()
+    {
+        if (s_stuckHandled || s_state != ProviderState.Running)
+            return;
+
+        var stuck = s_workers.FirstOrDefault(x => x.UnservedMilliseconds >= StuckWriteMs);
+
+        if (stuck == null)
+        {
+            s_stuckChecks = 0;
+            return;
+        }
+
+        if (++s_stuckChecks < 2)
+            return;
+
+        s_stuckHandled = true;
+
+        Log.Error($"A write to \"{stuck.Name}\" has not returned for {stuck.UnservedMilliseconds / 1000} s; the vendor's software is not answering. Restarting the host.");
+
+        // The stuck thread may hold the SDK, so a clean shutdown is not guaranteed either
+        new Thread(() =>
+        {
+            Thread.Sleep(8000);
+            Log.Error("The host could not shut down cleanly after a stuck write; exiting");
+            Environment.Exit(ExitDeviceLost);
+        })
+        { IsBackground = true, Name = "Stuck write failsafe" }.Start();
+
+        OnDeviceLost();
+    }
+
     private static void WriteStatus()
     {
         try
         {
+            CheckForStuckWrites();
+
             var frames = Interlocked.Read(ref s_framesReceived);
             var now = Environment.TickCount64;
             var seconds = Math.Max((now - s_lastFrameStamp) / 1000.0, 0.001);
